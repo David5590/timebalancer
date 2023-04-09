@@ -13,11 +13,18 @@ function AppContent() {
   }
 
   return (
-    <div>
+    <div className="dark:bg-gray-800 dark:text-white min-h-screen">
       {isAuthenticated ? (
         <>
           <Dashboard />
-          <button onClick={() => auth.signOut()}>Sign Out</button>
+          <div className="flex justify-center mb-4">
+            <button
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4 transition duration-200"
+              onClick={() => auth.signOut()}
+            >
+              Sign Out
+            </button>
+          </div>
         </>
       ) : (
         <Authentication />
