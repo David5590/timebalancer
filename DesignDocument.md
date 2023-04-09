@@ -8,7 +8,7 @@ The TimeBalancer is a Progressive Web App (PWA) designed to help users track the
 - Work hours and days configuration
 - Vacation days and holidays management
 - Integration with Toggl API for work hours tracking
-- Visualization of work hours deficit using Recharts
+- Visualization of work hours balance using Recharts
 - Calendar view for vacation days and holidays using react-dates
 - Offline support and installation on devices using PWA features
 
@@ -19,7 +19,7 @@ The TimeBalancer is a Progressive Web App (PWA) designed to help users track the
   - `components`
     - `Authentication`
     - `Dashboard`
-    - `WorkHoursDeficitChart`
+    - `WorkTimeBalanceChart`
     - `VacationCalendar`
   - `contexts`
     - `UserContext`
@@ -46,14 +46,15 @@ Firestore collections:
 #### Authentication
 
 - Google OAuth button
-- Sign-in and sign-out functionality
+- Sign-in and sign-out functionality using Firebase authentication
+- Integration with Firebase for user management
 
 #### Dashboard
 
-- Displays `WorkHoursDeficitChart` and `VacationCalendar` components
+- Displays `WorkTimeBalanceChart` and `VacationCalendar` components
 - Allows users to configure work hours and days
 
-#### WorkHoursDeficitChart
+#### WorkTimeBalanceChart
 
 - Displays work hours deficit data in a Recharts graph
 - Toggle switch for starting at 0 or starting at the deficit of the previous day
@@ -103,7 +104,7 @@ Firestore collections:
 ## Development Plan
 1. Set up React app with TypeScript, create-react-app, and PWA features
 2. Implement Google authentication and Firestore integration
-3. Create and style components (`Authentication`, `Dashboard`, `WorkHoursDeficitChart`, and `VacationCalendar`)
+3. Create and style components (`Authentication`, `Dashboard`, `WorkTimeBalanceChart`, and `VacationCalendar`)
 4. Implement contexts (`UserContext` and `WorkHoursContext`)
 5. Develop custom hooks (`useTogglData`) for fetching and managing Toggl data
 6. Create services (`togglService` and `firestoreService`) for handling API and Firestore communication
