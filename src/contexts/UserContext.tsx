@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useState, useEffect } from 'react';
+import { createContext, ReactNode, useContext, useState, useEffect, FC } from 'react';
 import { User } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -18,7 +18,7 @@ interface UserProviderProps {
   children: ReactNode;
 }
 
-export const UserProvider = ({ children }: UserProviderProps) => {
+export const UserProvider: FC<UserProviderProps> = ({ children }: UserProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
 

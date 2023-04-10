@@ -1,4 +1,6 @@
 import { useUserContext } from '../contexts/UserContext';
+import { VacationCalendar } from './VacationCalendar';
+import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 
 export const Dashboard = () => {
   const { user } = useUserContext();
@@ -12,6 +14,10 @@ export const Dashboard = () => {
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
           Welcome, {user?.displayName}. This is your personal dashboard.
         </p>
+        <div className="mt-6">
+          <WorkTimeBalanceChart />
+          <VacationCalendar />
+        </div>
       </div>
     </div>
   );
