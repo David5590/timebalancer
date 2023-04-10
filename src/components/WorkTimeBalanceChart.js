@@ -3,17 +3,17 @@ import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 import { enUS } from 'date-fns/locale'; // Import the desired locale
 import PropTypes from 'prop-types';
-import useDarkMode from '../hooks/useDarkMode';
+import { useDarkMode } from '../hooks/useDarkMode';
 
 export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
   const chartRef = useRef(null);
-  const darkMode = useDarkMode();
+  const darkmode = useDarkMode();
 
   const colors = {
-    text: darkMode.value ? '#ffffff' : '#000000',
-    grid: darkMode.value ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
-    lineColor: darkMode.value ? '#ffffff' : '#000000',
-    fillColor: darkMode.value ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    text: darkmode ? '#ffffff' : '#000000',
+    grid: darkmode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
+    lineColor: darkmode ? '#ffffff' : '#000000',
+    fillColor: darkmode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
   };
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
               },
             },
             tooltip: {
-              backgroundColor: darkMode.value ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
+              backgroundColor: darkmode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
               titleColor: colors.lineColor,
               bodyColor: colors.lineColor,
             },
@@ -86,7 +86,7 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
 
       return () => chart.destroy();
     }
-  }, [chartRef, dataPoints, timeRange]);
+  }, [chartRef, dataPoints, timeRange, darkmode]);
 
   return <canvas ref={chartRef}></canvas>;
 };

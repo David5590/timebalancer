@@ -1,6 +1,9 @@
+import { User } from 'firebase/auth';
 import { useUserContext } from '../contexts/UserContext';
 import { VacationCalendar } from './VacationCalendar';
 import { DataPoint, WorkTimeBalanceChart } from './WorkTimeBalanceChart';
+import {useDarkMode} from '../hooks/useDarkMode';
+import { MoonIcon, SunIcon } from "@heroicons/react/24/solid";
 
 const generateDummyData = (): DataPoint[] => {
   const dataPoints: DataPoint[] = [];
@@ -37,19 +40,53 @@ const dataPoints = [
   { x: new Date('2023-01-04T08:30:00'), y: 8.5 },
   { x: new Date('2023-01-05T06:00:00'), y: 6 },
 ];
-export const Dashboard = () => {
-  const { user } = useUserContext();
+export const Dashboard = ({
+  user,
+  onSettingsClick,
+}: {
+  user: User | null;
+  onSettingsClick: () => void;
+}) => {
+  const darkmode = useDarkMode()
+  console.log(user)
+
+  const setDarkMode = (enabled: boolean) => {
+    const htmlElement = document.documentElement;
+
+    if (enabled) {
+      htmlElement.classList.add("dark");
+    } else {
+      htmlElement.classList.remove("dark");
+    }
+  };
+
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkmode);
+  };
+
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-800 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-          Dashboard
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-          Welcome, {user?.displayName}. This is your personal dashboard.
-        </p>
-      </div>
+    <div className="min-h-screen bg-white dark:bg-gray-800">
+      <header className="flex justify-between items-center p-4 bg-gray-100 dark:bg-gray-900">
+        <h1 className="text-2xl font-bold">TimeBalancer</h1>
+        <div className="flex items-center space-x-4">
+          <button onClick={toggleDarkMode}>
+            {darkmode ? (
+              <SunIcon className="h-6 w-6 text-gray-800 dark:text-gray-200" />
+            ) : (
+              <MoonIcon className="h-6 w-6 text-gray-800 dark:text-gray-200" />
+            )}
+          </button>
+          <img
+            src={user?.photoURL || ""}
+            alt="Profile"
+            className="h-10 w-10 rounded-full cursor-pointer"
+            onClick={onSettingsClick}
+          />
+        </div>
+      </header>
+
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-4xl"> {/* Adjust the max width to your preference */}
         <div className="bg-white dark:bg-gray-900 p-8">
           <div className="relative h-[500px] w-full">

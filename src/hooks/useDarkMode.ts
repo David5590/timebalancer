@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const useDarkMode = () => {
+export const useDarkMode = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
@@ -24,7 +24,5 @@ const useDarkMode = () => {
     return () => observer.disconnect();
   }, []);
 
-  return { value: isDarkMode };
+  return isDarkMode;
 };
-
-export default useDarkMode;
