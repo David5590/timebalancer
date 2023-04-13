@@ -24,7 +24,6 @@ export const UserProvider: FC<UserProviderProps> = ({ children }: UserProviderPr
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      console.log("AuthStateChanged user", user)
       setUser(user);
       setIsAuthReady(true);
     });

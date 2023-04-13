@@ -5,6 +5,9 @@ import {setDarkMode, useDarkMode} from '../hooks/useDarkMode';
 import { MoonIcon, SunIcon } from "@heroicons/react/24/solid";
 import { useCallback, useEffect, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
+import { Project, TogglService } from '../services/togglService';
+import { auth } from '../firebase';
+import { SettingsDialog } from './SettingsDialog';
 
 const timeRange = {
   start: new Date('2023-01-01T00:00:00'),
@@ -18,21 +21,34 @@ const dataPoints = [
   { x: new Date('2023-01-05T06:00:00'), y: 6 },
 ];
 
-export const Dashboard = ({
-  user,
-  onSettingsClick,
-}: {
-  user: User | null;
-  onSettingsClick: () => void;
-  }) => {
+export const Dashboard = ({user}: {user: User | null}) => {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [editToggleApiKey, setEditToggleApiKey] = useState<string>('');
   const [togglApiKey, setTogglApiKey] = useState<string>('');
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const darkMode = useDarkMode()
+
+  const handleSignOut = () => {
+    auth.signOut();
+  };
+
+  const handleSettingsClick = () => {
+    setIsSettingsOpen(!isSettingsOpen);
+  };
 
   useEffect(() => {
     if (!user) return;
     setFirestore(new FirestoreService(user.uid));
   }, [user]);
+
+  useEffect(() => {
+    if (!togglApiKey) return;
+    const toggl = new TogglService(togglApiKey);
+    toggl.getProjects().then((projects) => {
+      setProjects(projects);
+    });
+  }, [togglApiKey]);
 
   useEffect(() => {
     if (!firestore) return;
@@ -45,9 +61,10 @@ export const Dashboard = ({
   }, [firestore]);
 
   const handleApiKeySubmit = useCallback(async () => {
+    setTogglApiKey(editToggleApiKey);
     if (!firestore) return;
-    await firestore.setTogglApiKey(togglApiKey);
-  }, [firestore, togglApiKey]);
+    await firestore.setTogglApiKey(editToggleApiKey);
+  }, [firestore, editToggleApiKey]);
 
   const toggleDarkMode = useCallback(async () => {
     setDarkMode(!darkMode);
@@ -71,7 +88,7 @@ export const Dashboard = ({
             src={user?.photoURL || ""}
             alt={user?.displayName || ""}
             className="h-10 w-10 rounded-full cursor-pointer"
-            onClick={onSettingsClick}
+            onClick={handleSettingsClick}
           />
         </div>
       </header>
@@ -91,8 +108,8 @@ export const Dashboard = ({
             className="p-2 border border-gray-300 dark:border-gray-700 rounded w-full"
             type="text"
             placeholder="Toggl API Key"
-            value={togglApiKey}
-            onChange={(e) => setTogglApiKey(e.target.value)}
+            value={editToggleApiKey}
+            onChange={(e) => setEditToggleApiKey(e.target.value)}
           />
           <button
             className="bg-blue-600 text-white p-2 rounded"
@@ -116,6 +133,13 @@ export const Dashboard = ({
         )}
       </div>
       <VacationCalendar />
+      <SettingsDialog
+        open={isSettingsOpen}
+        onClose={handleSettingsClick}
+        onSignOut={handleSignOut}
+        projects={projects}
+        togglApiKey={togglApiKey}
+      />
     </div>
   );
 
