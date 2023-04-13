@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
-import { enUS } from 'date-fns/locale'; // Import the desired locale
+import { enUS } from 'date-fns/locale';
 import PropTypes from 'prop-types';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { format } from 'date-fns';
 
 export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
   const chartRef = useRef(null);
@@ -35,22 +36,23 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
           ],
         },
         options: {
-          responsive: true, // Disable built-in responsiveness
+          responsive: true,
           maintainAspectRatio: false,
           scales: {
             x: {
               type: 'time',
               adapters: {
                 date: {
-                  locale: enUS, // Use the imported locale here                },
-                }
+                  locale: enUS,
+                },
               },
               time: {
                 min: timeRange.start,
                 max: timeRange.end,
-                unit: 'day',
+                unit: 'hour',
                 displayFormats: {
-                  day: 'MMM d',
+                  // hour: 'MMM d, h a', // Display format for hours
+                  day: 'MMM', // Display format for days
                 },
               },
               grid: {
@@ -58,6 +60,16 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
               },
               ticks: {
                 color: colors.text,
+                callback: function (value, index, values) {
+                  const dayFormat = 'MMM d';
+                  const previousValue = index > 0 ? values[index - 1].value : null;
+                  const currentValue = values[index].value;
+
+                  const isNextDay = !previousValue || format(currentValue, dayFormat, { locale: enUS }) !== format(previousValue, dayFormat, { locale: enUS })
+
+                  return format(currentValue, isNextDay ? 'MMM d, h a' : 'h a', { locale: enUS });
+
+                },
               },
             },
             y: {
@@ -103,4 +115,3 @@ WorkTimeBalanceChart.propTypes = {
     })
   ).isRequired,
 };
-

@@ -26,3 +26,13 @@ export const useDarkMode = () => {
 
   return isDarkMode;
 };
+
+export const setDarkMode = (enabled: boolean) => {
+  const htmlElement = document.documentElement;
+
+  if (enabled) {
+    htmlElement.classList.add("dark");
+  } else {
+    htmlElement.classList.remove("dark");
+  }
+};

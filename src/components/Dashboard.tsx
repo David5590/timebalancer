@@ -1,34 +1,11 @@
 import { User } from 'firebase/auth';
-import { useUserContext } from '../contexts/UserContext';
 import { VacationCalendar } from './VacationCalendar';
-import { DataPoint, WorkTimeBalanceChart } from './WorkTimeBalanceChart';
-import {useDarkMode} from '../hooks/useDarkMode';
+import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
+import {setDarkMode, useDarkMode} from '../hooks/useDarkMode';
 import { MoonIcon, SunIcon } from "@heroicons/react/24/solid";
+import { useCallback, useEffect, useState } from 'react';
+import { FirestoreService } from '../services/firestoreService';
 
-const generateDummyData = (): DataPoint[] => {
-  const dataPoints: DataPoint[] = [];
-
-  for (let i = 0; i < 10; i++) {
-    const date = new Date(2023, 4, 10);
-    date.setHours(Math.floor(Math.random() * 24));
-    date.setMinutes(Math.floor(Math.random() * 60));
-
-    const hours = Math.floor(Math.random() * 12) + 1;
-
-    dataPoints.push({
-      x: date,
-      y: hours,
-    });
-  }
-
-  return dataPoints.sort((a, b) => new Date(a.x).getTime() - new Date(b.x ).getTime());
-};
-
-// const dataPoints = generateDummyData();
-// const timeRange = {
-//   start: new Date(2023, 4, 10),
-//   end: new Date(2023, 4, 11),
-// };
 const timeRange = {
   start: new Date('2023-01-01T00:00:00'),
   end: new Date('2023-12-31T23:59:59'),
@@ -40,31 +17,43 @@ const dataPoints = [
   { x: new Date('2023-01-04T08:30:00'), y: 8.5 },
   { x: new Date('2023-01-05T06:00:00'), y: 6 },
 ];
+
 export const Dashboard = ({
   user,
   onSettingsClick,
 }: {
   user: User | null;
   onSettingsClick: () => void;
-}) => {
-  const darkmode = useDarkMode()
-  console.log(user)
+  }) => {
+  const [togglApiKey, setTogglApiKey] = useState<string>('');
+  const [firestore, setFirestore] = useState<FirestoreService | null>(null);
+  const darkMode = useDarkMode()
 
-  const setDarkMode = (enabled: boolean) => {
-    const htmlElement = document.documentElement;
+  useEffect(() => {
+    if (!user) return;
+    setFirestore(new FirestoreService(user.uid));
+  }, [user]);
 
-    if (enabled) {
-      htmlElement.classList.add("dark");
-    } else {
-      htmlElement.classList.remove("dark");
-    }
-  };
+  useEffect(() => {
+    if (!firestore) return;
+    firestore.getDarkMode().then((darkMode) => {
+      setDarkMode(darkMode ?? false);
+    });
+    firestore.getTogglApiKey().then((togglApiKey) => {
+      setTogglApiKey(togglApiKey ?? '');
+    });
+  }, [firestore]);
 
+  const handleApiKeySubmit = useCallback(async () => {
+    if (!firestore) return;
+    await firestore.setTogglApiKey(togglApiKey);
+  }, [firestore, togglApiKey]);
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkmode);
-  };
-
+  const toggleDarkMode = useCallback(async () => {
+    setDarkMode(!darkMode);
+    if (!firestore) return;
+    await firestore.setDarkMode(darkMode);
+  }, [firestore, darkMode]);
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-800">
@@ -72,7 +61,7 @@ export const Dashboard = ({
         <h1 className="text-2xl font-bold">TimeBalancer</h1>
         <div className="flex items-center space-x-4">
           <button onClick={toggleDarkMode}>
-            {darkmode ? (
+            {darkMode ? (
               <SunIcon className="h-6 w-6 text-gray-800 dark:text-gray-200" />
             ) : (
               <MoonIcon className="h-6 w-6 text-gray-800 dark:text-gray-200" />
@@ -80,21 +69,53 @@ export const Dashboard = ({
           </button>
           <img
             src={user?.photoURL || ""}
-            alt="Profile"
+            alt={user?.displayName || ""}
             className="h-10 w-10 rounded-full cursor-pointer"
             onClick={onSettingsClick}
           />
         </div>
       </header>
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-4xl"> {/* Adjust the max width to your preference */}
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-7xl">
+        {togglApiKey ? (
         <div className="bg-white dark:bg-gray-900 p-8">
-          <div className="relative h-[500px] w-full">
+          <div className="relative h-[300px] w-full">
             <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints} />
           </div>
+
+      </div>) : (
+      <div className="mt-6 p-8 bg-white dark:bg-gray-900">
+        <h2 className="text-xl font-bold mb-4">Enter Toggl API Key</h2>
+        <div className="flex items-center space-x-4">
+          <input
+            className="p-2 border border-gray-300 dark:border-gray-700 rounded w-full"
+            type="text"
+            placeholder="Toggl API Key"
+            value={togglApiKey}
+            onChange={(e) => setTogglApiKey(e.target.value)}
+          />
+          <button
+            className="bg-blue-600 text-white p-2 rounded"
+            onClick={handleApiKeySubmit}
+          >
+            Confirm
+          </button>
         </div>
-        <VacationCalendar />
+        <p className="mt-4">
+          Don't have an API key?{' '}
+          <a
+            href="https://track.toggl.com/profile"
+            target="_blank"
+            rel="noreferrer"
+            className="text-blue-600 dark:text-blue-400"
+          >
+            Get it here
+          </a>
+        </p>
       </div>
+        )}
+      </div>
+      <VacationCalendar />
     </div>
   );
 
