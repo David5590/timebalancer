@@ -1,10 +1,12 @@
 import { db } from "../firebase";
 import { collection, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { Project } from "./togglService";
 
 export interface UserConfig {
   togglApiKey: string;
   darkMode: boolean;
   vacationDays: string[];
+  project: Project;
 }
 
 export class FirestoreService {
@@ -59,6 +61,19 @@ export class FirestoreService {
     return this.setUserConfigField<string[]>(
       "vacationDays",
       Array.from(vacationDays),
+    );
+  }
+
+  public async getProject(): Promise<Project | null> {
+    return this.getUserConfigField<Project>("project");
+  }
+
+  public async setProject(
+    project: Project,
+  ): Promise<void> {
+    return this.setUserConfigField<Project>(
+      "project",
+      project,
     );
   }
 

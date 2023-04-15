@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
   const chartRef = useRef(null);
   const darkmode = useDarkMode();
+  console.log('dataPoints', dataPoints)
 
   const colors = {
     text: darkmode ? '#ffffff' : '#000000',
@@ -31,6 +32,7 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
               backgroundColor: colors.fillColor,
               pointBackgroundColor: colors.lineColor,
               pointBorderColor: colors.lineColor,
+              pointStyle: false,
               borderWidth: 2,
             },
           ],

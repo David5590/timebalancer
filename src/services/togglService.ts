@@ -1,4 +1,16 @@
+import {
+  addMinutes,
+  eachDayOfInterval,
+  format,
+  formatISO,
+  isWeekend,
+} from "date-fns";
 import axios, { AxiosResponse } from "axios";
+
+export interface DataPoint {
+  time: string;
+  duration: number;
+}
 
 export interface TimeEntry {
   at: string; // When was last updated
@@ -23,16 +35,10 @@ export interface TimeEntry {
 }
 
 export interface Project {
+  id: number; // Project ID
   active: boolean; // Whether the project is active or archived
   color: string; // Color (hex string)
-  created_at: string; // Creation date
-  end_date: string; // End date
-  estimated_hours: number | null; // Estimated hours
-  first_time_entry: string; // First time entry for this project. Only included if it was requested with with_first_time_entry
-  id: number; // Project ID
-  is_private: boolean; // Whether the project is private
   name: string; // Name
-  start_date: string; // Start date
 }
 
 export class TogglService {
@@ -159,10 +165,84 @@ export class TogglService {
       const projects = response.data;
       this.saveProjectsToCache(projects);
 
-      return projects.filter((project) => project.active);
+      return projects.filter((project) => project.active).map((project) => ({
+        id: project.id,
+        name: project.name,
+        color: project.color,
+        active: project.active,
+      }));
     } catch (error) {
       console.error("Error fetching projects:", error);
       return [];
     }
+  }
+
+  public async getProjectDataPoints(
+    projectId: number,
+    timeRange: [string, string],
+    hoursPerDay: number,
+    vacationDays: Set<string>,
+  ): Promise<DataPoint[]> {
+    const startDate = new Date(timeRange[0]);
+    const endDate = new Date(timeRange[1]);
+
+    // Fetch time entries in the given time range
+    const timeEntries = await this.getTimeEntries(timeRange[0], timeRange[1]);
+
+    // Filter time entries for the given project ID
+    const projectTimeEntries = timeEntries.filter((entry) =>
+      entry.project_id === projectId
+    );
+
+    // Create an array of all non-vacation weekdays in the time range
+    const weekdays = eachDayOfInterval({ start: startDate, end: endDate })
+      .filter(
+        (day) =>
+          !isWeekend(day) &&
+          !vacationDays.has(format(day, "yyyy-MM-dd")),
+      );
+
+    // Initialize the events array
+    const events: any[] = [];
+    console.log("vacationDays: ", vacationDays);
+    console.log("weekdays: ", weekdays);
+
+    // Add events for non-vacation weekdays
+    weekdays.forEach((weekday) => {
+      const a = formatISO(weekday);
+      const b = formatISO(addMinutes(weekday, 1));
+      events.push({ time: a, durationChange: 0 });
+      events.push({ time: b, durationChange: hoursPerDay });
+    });
+
+    // Add events for project time entries
+    projectTimeEntries.forEach((entry) => {
+      events.push({
+        time: entry.start,
+        durationChange: 0,
+      });
+      events.push({
+        time: entry.stop ?? entry.start,
+        durationChange: -entry.duration / 3600,
+      });
+    });
+
+    // Sort the events by time
+    events.sort((a, b) =>
+      new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+
+    // Initialize the data points array and the current duration value
+    const dataPoints: DataPoint[] = [];
+    let currentDuration = 0;
+    console.log("events: ", events);
+
+    // Calculate the data points using the sorted events
+    events.forEach((event, index) => {
+      currentDuration += event.durationChange;
+      dataPoints.push({ time: event.time, duration: currentDuration });
+    });
+
+    return dataPoints;
   }
 }

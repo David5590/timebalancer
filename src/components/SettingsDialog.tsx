@@ -3,17 +3,20 @@ import { Project } from '../services/togglService';
 import { useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 
+
 type SettingsDialogProperties = {
   open: boolean;
   onClose: () => void;
   onSignOut: () => void;
+  onProjectSelect: (project: Project) => void;
   projects: Project[];
+  project: Project | null;
   togglApiKey: string;
 };
 
-export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey }: SettingsDialogProperties) {
+export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey, project, onProjectSelect }: SettingsDialogProperties) {
   const [toggleApiKeyEdit, setToggleApiKeyEdit] = useState(togglApiKey);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(project);
 
   const [optionsPosition, setOptionsPosition] = useState({ top: 0, left: 0, width: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -23,6 +26,11 @@ export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey
       const rect = buttonRef.current.getBoundingClientRect();
       setOptionsPosition({ top: rect.bottom, left: rect.left, width: rect.width });
     }
+  };
+
+  const handleSelectedProjectChange = (project: Project) => {
+    setSelectedProject(project);
+    onProjectSelect(project);
   };
 
 
@@ -54,7 +62,7 @@ export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey
           </div>
 
           <div className="mt-5">
-            <Listbox value={selectedProject} onChange={setSelectedProject}>
+            <Listbox value={selectedProject} onChange={handleSelectedProjectChange}>
               {({ open }) => (
                 <>
                   <Listbox.Label className="block text-sm font-medium text-gray-700">

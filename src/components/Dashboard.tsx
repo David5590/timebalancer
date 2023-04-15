@@ -1,13 +1,14 @@
 import { User } from 'firebase/auth';
-import { eachDayOfInterval, format } from 'date-fns';
+import { startOfWeek, endOfWeek, eachDayOfInterval, format } from 'date-fns';
 import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
 import { MoonIcon, SunIcon } from "@heroicons/react/24/solid";
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
-import { Project, TogglService } from '../services/togglService';
+import { DataPoint, Project, TogglService } from '../services/togglService';
 import { auth } from '../firebase';
 import { SettingsDialog } from './SettingsDialog';
+import { Switch } from '@headlessui/react';
 
 import Calendar from 'rc-year-calendar';
 import { useReducer } from 'react';
@@ -16,17 +17,10 @@ function dateString(date: Date) {
   return format(date, 'yyyy-MM-dd');
 }
 
-const timeRange = {
-  start: new Date('2023-01-01T00:00:00'),
-  end: new Date('2023-12-31T23:59:59'),
-};
-const dataPoints = [
-  { x: new Date('2023-01-01T08:00:00'), y: 8 },
-  { x: new Date('2023-01-02T07:30:00'), y: 7.5 },
-  { x: new Date('2023-01-03T09:00:00'), y: 9 },
-  { x: new Date('2023-01-04T08:30:00'), y: 8.5 },
-  { x: new Date('2023-01-05T06:00:00'), y: 6 },
-];
+interface TimeRange {
+  start: Date;
+  end: Date;
+}
 
 // Define the action type and payload type
 interface UpdateVacationDaysAction {
@@ -43,7 +37,6 @@ interface SetVacationDaysAction {
 
 // Combine the action types
 type VacationDaysAction = UpdateVacationDaysAction | SetVacationDaysAction;
-
 
 const vacationDaysReducer = (state: Set<string>, action: VacationDaysAction): Set<string> => {
   const newState = new Set(state);
@@ -83,28 +76,91 @@ export const Dashboard = ({ user }: { user: User | null }) => {
   const [togglApiKey, setTogglApiKey] = useState<string>('');
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [project, setProject] = useState<Project | null>(null);
+  const [isTimeRangeMode, setIsTimeRangeMode] = useState(true);
+  const [timeRange, setTimeRange] = useState<TimeRange>({
+    start: startOfWeek(new Date(), { weekStartsOn: 1 }),
+    end: endOfWeek(new Date(), { weekStartsOn: 1 }),
+  });
+  const [dataPoints, setDataPoints] = useState<DataPoint[]>([]);
 
   const [vacationDays, dispatch] = useReducer(vacationDaysReducer, new Set<string>());
 
-  const handleRangeSelect = useCallback((event: { startDate: Date; endDate: Date }) => {
-    dispatch({ type: "UPDATE_VACATION_DAYS", payload: event });
-  }, []);
+  // Add the useEffect hook to update the dataPoints state variable
+  useEffect(() => {
+    if (!project || !togglApiKey) return;
+    console.log("useEffect: ", project, togglApiKey, timeRange)
+    const togglService = new TogglService(togglApiKey);
+    const hoursPerDay = 7; // You can replace this with the actual value
+    togglService.getProjectDataPoints(
+      project.id,
+      [timeRange.start.toISOString(), timeRange.end.toISOString()],
+      hoursPerDay,
+      vacationDays,
+    ).then((dataPoints) => {
+      console.log("dataPoints: ", dataPoints);
+      setDataPoints(dataPoints);
+    });
+    console.log("fetchDataPoints: ", project.id, [timeRange.start.toISOString(), timeRange.end.toISOString()], hoursPerDay, vacationDays);
+
+  }, [project, togglApiKey, timeRange, vacationDays]);
+
+  const handleRangeSelect = useCallback(
+    (event: { startDate: Date; endDate: Date }) => {
+      if (isTimeRangeModeRef.current) {
+        setTimeRange({ start: event.startDate, end: event.endDate });
+      } else {
+        dispatch({ type: "UPDATE_VACATION_DAYS", payload: event });
+      }
+    },
+    []
+  );
+
+  const handleProjectSelect = useCallback((project: Project) => {
+    if (!firestore || !project) return;
+    firestore.setProject(project);
+    setProject(project);
+  }, [firestore]);
+
+  const isTimeRangeModeRef = useRef(isTimeRangeMode);
+
+  const handleToggleChange = () => {
+    setIsTimeRangeMode(!isTimeRangeMode);
+  };
+
+  useEffect(() => {
+    isTimeRangeModeRef.current = isTimeRangeMode;
+  }, [isTimeRangeMode]);
 
 
   useEffect(() => {
     if (!firestore) return;
-    const loadVacationDays = async () => {
-      const loadedVacationDays = await firestore.getVacationDays();
-      console.log("loadedVacationDays", loadedVacationDays)
-      dispatch({ type: "SET_VACATION_DAYS", payload: loadedVacationDays ?? new Set() });
-    };
-    loadVacationDays();
+
+  }, [firestore]);
+
+  const loadFirestore = (firestore: FirestoreService) => {
+    firestore.getVacationDays().then((vacationDays) => {
+      dispatch({ type: "SET_VACATION_DAYS", payload: vacationDays ?? new Set() });
+    });
+    firestore.getDarkMode().then((darkMode) => {
+      setDarkMode(darkMode ?? false);
+    });
+    firestore.getTogglApiKey().then((togglApiKey) => {
+      setTogglApiKey(togglApiKey ?? '');
+    });
+    firestore.getProject().then((project) => {
+      setProject(project);
+    });
+  }
+
+  useEffect(() => {
+    if (!firestore) return;
+    loadFirestore(firestore);
   }, [firestore]);
 
   useEffect(() => {
     if (!firestore) return;
     if (vacationDays.size === 0) return;
-    console.log("Saving vacation days", vacationDays)
     const saveVacationDays = async () => {
       await firestore.setVacationDays(vacationDays);
     };
@@ -119,7 +175,7 @@ export const Dashboard = ({ user }: { user: User | null }) => {
       name: 'Vacation',
       startDate,
       endDate,
-      color: '#4caf50',
+      color: '#ff982d',
     }
   });
 
@@ -142,16 +198,6 @@ export const Dashboard = ({ user }: { user: User | null }) => {
     });
   }, [togglApiKey]);
 
-  useEffect(() => {
-    if (!firestore) return;
-    firestore.getDarkMode().then((darkMode) => {
-      setDarkMode(darkMode ?? false);
-    });
-    firestore.getTogglApiKey().then((togglApiKey) => {
-      setTogglApiKey(togglApiKey ?? '');
-    });
-  }, [firestore]);
-
   const handleApiKeySubmit = useCallback(async () => {
     setTogglApiKey(editToggleApiKey);
     if (!firestore) return;
@@ -165,6 +211,9 @@ export const Dashboard = ({ user }: { user: User | null }) => {
   }, [firestore, darkMode]);
 
   const handleSettingsClick = () => {
+    if (isSettingsOpen && firestore) {
+      loadFirestore(firestore);
+    }
     setIsSettingsOpen(!isSettingsOpen);
   };
 
@@ -195,7 +244,7 @@ export const Dashboard = ({ user }: { user: User | null }) => {
         {togglApiKey ? (
           <div className="bg-white dark:bg-gray-900 p-8">
             <div className="relative h-[300px] w-full">
-              <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints} />
+              <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints.map(({ time, duration }) => ({ x: new Date(time), y: duration }))} />
             </div>
 
           </div>) : (
@@ -229,6 +278,25 @@ export const Dashboard = ({ user }: { user: User | null }) => {
             </p>
           </div>
         )}
+        <div className="flex justify-center items-center mt-6 mb-4">
+          <span className="text-gray-800 dark:text-gray-200 mr-4">
+            Add Vacation Days
+          </span>
+          <Switch
+            checked={isTimeRangeMode}
+            onChange={handleToggleChange}
+            className={`${isTimeRangeMode ? "bg-blue-600" : "bg-gray-200"
+              } relative inline-flex items-center h-6 rounded-full w-11`}
+          >
+            <span
+              className={`${isTimeRangeMode ? "translate-x-6" : "translate-x-1"
+                } inline-block w-4 h-4 transform bg-white rounded-full transition-transform ease-in-out duration-200`}
+            />
+          </Switch>
+          <span className="text-gray-800 dark:text-gray-200 ml-4">
+            Select Graph Range
+          </span>
+        </div>
         <Calendar
           defaultYear={(new Date()).getFullYear()}
           dataSource={vacationEvents}
@@ -241,7 +309,9 @@ export const Dashboard = ({ user }: { user: User | null }) => {
         onClose={handleSettingsClick}
         onSignOut={handleSignOut}
         projects={projects}
+        project={project}
         togglApiKey={togglApiKey}
+        onProjectSelect={handleProjectSelect}
       />
     </div>
   );
