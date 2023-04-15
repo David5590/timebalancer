@@ -1,4 +1,4 @@
-import { Dialog, Listbox } from '@headlessui/react'
+import { Dialog, Listbox } from '@headlessui/react';
 import { Project } from '../services/togglService';
 import { useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -11,7 +11,7 @@ type SettingsDialogProperties = {
   togglApiKey: string;
 };
 
-export function SettingsDialog({open, onClose, onSignOut, projects, togglApiKey}: SettingsDialogProperties) {
+export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey }: SettingsDialogProperties) {
   const [toggleApiKeyEdit, setToggleApiKeyEdit] = useState(togglApiKey);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
@@ -53,20 +53,20 @@ export function SettingsDialog({open, onClose, onSignOut, projects, togglApiKey}
             />
           </div>
 
-            <div className="mt-5">
-              <Listbox value={selectedProject} onChange={setSelectedProject}>
-                {({ open }) => (
-                  <>
-                    <Listbox.Label className="block text-sm font-medium text-gray-700">
-                      Project
-                    </Listbox.Label>
-                    <div className="mt-1 relative">
-                      <Listbox.Button
-                        ref={buttonRef}
-                        onFocus={updateOptionsPosition}
-                        onClick={updateOptionsPosition}
-                        className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
+          <div className="mt-5">
+            <Listbox value={selectedProject} onChange={setSelectedProject}>
+              {({ open }) => (
+                <>
+                  <Listbox.Label className="block text-sm font-medium text-gray-700">
+                    Project
+                  </Listbox.Label>
+                  <div className="mt-1 relative">
+                    <Listbox.Button
+                      ref={buttonRef}
+                      onFocus={updateOptionsPosition}
+                      onClick={updateOptionsPosition}
+                      className="relative w-full py-2 pl-3 pr-10 text-left bg-white border border-gray-300 rounded-md cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
                       <span className="block truncate">
                         {selectedProject ? (
                           <>

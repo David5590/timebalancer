@@ -1,13 +1,20 @@
 import { User } from 'firebase/auth';
-import { VacationCalendar } from './VacationCalendar';
+import { eachDayOfInterval, format, isWithinInterval } from 'date-fns';
 import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
-import {setDarkMode, useDarkMode} from '../hooks/useDarkMode';
+import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
 import { MoonIcon, SunIcon } from "@heroicons/react/24/solid";
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
 import { Project, TogglService } from '../services/togglService';
 import { auth } from '../firebase';
 import { SettingsDialog } from './SettingsDialog';
+
+import Calendar from 'rc-year-calendar';
+import { useReducer } from 'react';
+
+function dateString(date: Date) {
+  return format(date, 'yyyy-MM-dd');
+}
 
 const timeRange = {
   start: new Date('2023-01-01T00:00:00'),
@@ -21,20 +28,84 @@ const dataPoints = [
   { x: new Date('2023-01-05T06:00:00'), y: 6 },
 ];
 
-export const Dashboard = ({user}: {user: User | null}) => {
+// Define the action type and payload type
+interface UpdateVacationDaysAction {
+  type: "UPDATE_VACATION_DAYS";
+  payload: {
+    startDate: Date;
+    endDate: Date;
+  };
+}
+
+// Combine the action types
+type VacationDaysAction = UpdateVacationDaysAction;
+
+const vacationDaysReducer = (state: Set<string>, action: VacationDaysAction): Set<string> => {
+  console.log("Handling action: ", action.type, " with payload: ", action.payload, " and state: ", state, "")
+  const newState = new Set(state);
+  const { startDate, endDate } = action.payload;
+  const start = dateString(startDate);
+  const end = dateString(endDate);
+  const add = !newState.has(start);
+
+  if (start && end) {
+    const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
+
+    dateRange.forEach((d) => {
+      const date = dateString(d);
+      if (add) {
+        newState.add(date);
+      } else if (newState.has(date)) {
+        newState.delete(date);
+      }
+    });
+    console.log("New state: ", newState)
+    return newState;
+  } else {
+    return newState;
+  }
+};
+
+
+export const Dashboard = ({ user }: { user: User | null }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editToggleApiKey, setEditToggleApiKey] = useState<string>('');
   const [togglApiKey, setTogglApiKey] = useState<string>('');
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+
+  const [vacationDays, dispatch] = useReducer(vacationDaysReducer, new Set<string>(['2023-01-05', '2023-01-01']));
+
+  const handleRangeSelect = useCallback((event: { startDate: Date; endDate: Date }) => {
+    dispatch({ type: "UPDATE_VACATION_DAYS", payload: event });
+  }, []);
+
+
+  // const getVacationEvents = useCallback((year: number) => {
+  //   console.log("gettingVacationEvents")
+  //   const currentVacationDays = vacationDays;
+
+  //   // const vacationDaysInYear = Array.from(currentVacationDays).filter((date) => date.split('-')[0] === year.toString());
+
+  //   return
+  // }, [vacationDays]);
+
+  const vacationEvents = Array.from(vacationDays).map((date) => {
+    const startDate = new Date(date);
+    const endDate = new Date(date);
+    return {
+      id: date,
+      name: 'Vacation',
+      startDate,
+      endDate,
+      color: '#4caf50',
+    }
+  });
+
   const darkMode = useDarkMode()
 
   const handleSignOut = () => {
     auth.signOut();
-  };
-
-  const handleSettingsClick = () => {
-    setIsSettingsOpen(!isSettingsOpen);
   };
 
   useEffect(() => {
@@ -72,6 +143,10 @@ export const Dashboard = ({user}: {user: User | null}) => {
     await firestore.setDarkMode(darkMode);
   }, [firestore, darkMode]);
 
+  const handleSettingsClick = () => {
+    setIsSettingsOpen(!isSettingsOpen);
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-800">
       <header className="flex justify-between items-center p-4 bg-gray-100 dark:bg-gray-900">
@@ -93,46 +168,53 @@ export const Dashboard = ({user}: {user: User | null}) => {
         </div>
       </header>
 
+      <div id="daterangepicker-container"></div>
+
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-7xl">
         {togglApiKey ? (
-        <div className="bg-white dark:bg-gray-900 p-8">
-          <div className="relative h-[300px] w-full">
-            <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints} />
-          </div>
+          <div className="bg-white dark:bg-gray-900 p-8">
+            <div className="relative h-[300px] w-full">
+              <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints} />
+            </div>
 
-      </div>) : (
-      <div className="mt-6 p-8 bg-white dark:bg-gray-900">
-        <h2 className="text-xl font-bold mb-4">Enter Toggl API Key</h2>
-        <div className="flex items-center space-x-4">
-          <input
-            className="p-2 border border-gray-300 dark:border-gray-700 rounded w-full"
-            type="text"
-            placeholder="Toggl API Key"
-            value={editToggleApiKey}
-            onChange={(e) => setEditToggleApiKey(e.target.value)}
-          />
-          <button
-            className="bg-blue-600 text-white p-2 rounded"
-            onClick={handleApiKeySubmit}
-          >
-            Confirm
-          </button>
-        </div>
-        <p className="mt-4">
-          Don't have an API key?{' '}
-          <a
-            href="https://track.toggl.com/profile"
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-600 dark:text-blue-400"
-          >
-            Get it here
-          </a>
-        </p>
-      </div>
+          </div>) : (
+          <div className="mt-6 p-8 bg-white dark:bg-gray-900">
+            <h2 className="text-xl font-bold mb-4">Enter Toggl API Key</h2>
+            <div className="flex items-center space-x-4">
+              <input
+                className="p-2 border border-gray-300 dark:border-gray-700 rounded w-full"
+                type="text"
+                placeholder="Toggl API Key"
+                value={editToggleApiKey}
+                onChange={(e) => setEditToggleApiKey(e.target.value)}
+              />
+              <button
+                className="bg-blue-600 text-white p-2 rounded"
+                onClick={handleApiKeySubmit}
+              >
+                Confirm
+              </button>
+            </div>
+            <p className="mt-4">
+              Don't have an API key?{' '}
+              <a
+                href="https://track.toggl.com/profile"
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 dark:text-blue-400"
+              >
+                Get it here
+              </a>
+            </p>
+          </div>
         )}
+        <Calendar
+          defaultYear={(new Date()).getFullYear()}
+          dataSource={vacationEvents}
+          onRangeSelected={handleRangeSelect}
+          enableRangeSelection={true}
+        />
       </div>
-      <VacationCalendar />
       <SettingsDialog
         open={isSettingsOpen}
         onClose={handleSettingsClick}
