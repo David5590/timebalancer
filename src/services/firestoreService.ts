@@ -4,6 +4,7 @@ import { collection, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 export interface UserConfig {
   togglApiKey: string;
   darkMode: boolean;
+  vacationDays: string[];
 }
 
 export class FirestoreService {
@@ -42,6 +43,23 @@ export class FirestoreService {
 
   public async setDarkMode(darkMode: boolean): Promise<void> {
     return this.setUserConfigField<boolean>("darkMode", darkMode);
+  }
+
+  public async getVacationDays(): Promise<Set<string> | null> {
+    const vacationDays = await this.getUserConfigField<string[]>(
+      "vacationDays",
+    );
+    if (vacationDays) {
+      return new Set(vacationDays);
+    }
+    return null;
+  }
+
+  public async setVacationDays(vacationDays: Set<string>): Promise<void> {
+    return this.setUserConfigField<string[]>(
+      "vacationDays",
+      Array.from(vacationDays),
+    );
   }
 
   private async getUserConfigField<T>(

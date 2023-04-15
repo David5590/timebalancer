@@ -1,9 +1,9 @@
 import { User } from 'firebase/auth';
-import { eachDayOfInterval, format, isWithinInterval } from 'date-fns';
+import { eachDayOfInterval, format } from 'date-fns';
 import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
 import { MoonIcon, SunIcon } from "@heroicons/react/24/solid";
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
 import { Project, TogglService } from '../services/togglService';
 import { auth } from '../firebase';
@@ -36,33 +36,43 @@ interface UpdateVacationDaysAction {
     endDate: Date;
   };
 }
+interface SetVacationDaysAction {
+  type: "SET_VACATION_DAYS";
+  payload: Set<string>;
+}
 
 // Combine the action types
-type VacationDaysAction = UpdateVacationDaysAction;
+type VacationDaysAction = UpdateVacationDaysAction | SetVacationDaysAction;
+
 
 const vacationDaysReducer = (state: Set<string>, action: VacationDaysAction): Set<string> => {
-  console.log("Handling action: ", action.type, " with payload: ", action.payload, " and state: ", state, "")
   const newState = new Set(state);
-  const { startDate, endDate } = action.payload;
-  const start = dateString(startDate);
-  const end = dateString(endDate);
-  const add = !newState.has(start);
+  switch (action.type) {
+    case "UPDATE_VACATION_DAYS":
+      const { startDate, endDate } = action.payload;
+      const start = dateString(startDate);
+      const end = dateString(endDate);
+      const add = !newState.has(start);
 
-  if (start && end) {
-    const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
+      if (start && end) {
+        const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
 
-    dateRange.forEach((d) => {
-      const date = dateString(d);
-      if (add) {
-        newState.add(date);
-      } else if (newState.has(date)) {
-        newState.delete(date);
+        dateRange.forEach((d) => {
+          const date = dateString(d);
+          if (add) {
+            newState.add(date);
+          } else if (newState.has(date)) {
+            newState.delete(date);
+          }
+        });
+        return newState;
+      } else {
+        return newState;
       }
-    });
-    console.log("New state: ", newState)
-    return newState;
-  } else {
-    return newState;
+    case "SET_VACATION_DAYS":
+      return action.payload;
+    default:
+      return state;
   }
 };
 
@@ -74,21 +84,32 @@ export const Dashboard = ({ user }: { user: User | null }) => {
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
 
-  const [vacationDays, dispatch] = useReducer(vacationDaysReducer, new Set<string>(['2023-01-05', '2023-01-01']));
+  const [vacationDays, dispatch] = useReducer(vacationDaysReducer, new Set<string>());
 
   const handleRangeSelect = useCallback((event: { startDate: Date; endDate: Date }) => {
     dispatch({ type: "UPDATE_VACATION_DAYS", payload: event });
   }, []);
 
 
-  // const getVacationEvents = useCallback((year: number) => {
-  //   console.log("gettingVacationEvents")
-  //   const currentVacationDays = vacationDays;
+  useEffect(() => {
+    if (!firestore) return;
+    const loadVacationDays = async () => {
+      const loadedVacationDays = await firestore.getVacationDays();
+      console.log("loadedVacationDays", loadedVacationDays)
+      dispatch({ type: "SET_VACATION_DAYS", payload: loadedVacationDays ?? new Set() });
+    };
+    loadVacationDays();
+  }, [firestore]);
 
-  //   // const vacationDaysInYear = Array.from(currentVacationDays).filter((date) => date.split('-')[0] === year.toString());
-
-  //   return
-  // }, [vacationDays]);
+  useEffect(() => {
+    if (!firestore) return;
+    if (vacationDays.size === 0) return;
+    console.log("Saving vacation days", vacationDays)
+    const saveVacationDays = async () => {
+      await firestore.setVacationDays(vacationDays);
+    };
+    saveVacationDays();
+  }, [firestore, vacationDays]);
 
   const vacationEvents = Array.from(vacationDays).map((date) => {
     const startDate = new Date(date);
