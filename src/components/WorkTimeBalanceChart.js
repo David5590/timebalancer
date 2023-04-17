@@ -100,7 +100,7 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
 
       return () => chart.destroy();
     }
-  }, [chartRef, dataPoints, timeRange, darkmode]);
+  }, [chartRef, dataPoints, timeRange, darkmode, colors.lineColor, colors.fillColor, colors.grid, colors.text]);
 
   return <canvas ref={chartRef}></canvas>;
 };

@@ -10,7 +10,6 @@ import { SettingsDialog } from './SettingsDialog';
 import { Header } from './Header';
 import { ApiKeyPrompt } from './ApiKeyPrompt';
 import { useUserContext } from '../contexts/UserContext';
-import Calendar from 'rc-year-calendar';
 
 interface TimeRange {
   start: Date;
@@ -23,7 +22,7 @@ export const Dashboard = () => {
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>({
+  const [timeRange] = useState<TimeRange>({
     start: startOfWeek(new Date(), { weekStartsOn: 1 }),
     end: endOfWeek(new Date(), { weekStartsOn: 1 }),
   });
