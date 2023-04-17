@@ -2,15 +2,11 @@
 import { startOfWeek, endOfWeek } from 'date-fns';
 import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
 import { DataPoint, Project, TogglService } from '../services/togglService';
 import { auth } from '../firebase';
 import { SettingsDialog } from './SettingsDialog';
-import { Switch } from '@headlessui/react';
-import { vacationDaysReducer } from './vacationDaysReducer';
-import Calendar from 'rc-year-calendar';
-import { useReducer } from 'react';
 import { Header } from './Header';
 import { ApiKeyPrompt } from './ApiKeyPrompt';
 import { useUserContext } from '../contexts/UserContext';
@@ -26,13 +22,12 @@ export const Dashboard = () => {
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
-  const [isTimeRangeMode, setIsTimeRangeMode] = useState(true);
   const [timeRange, setTimeRange] = useState<TimeRange>({
     start: startOfWeek(new Date(), { weekStartsOn: 1 }),
     end: endOfWeek(new Date(), { weekStartsOn: 1 }),
   });
   const [dataPoints, setDataPoints] = useState<DataPoint[]>([]);
-  const [vacationDays, dispatch] = useReducer(vacationDaysReducer, new Set<string>());
+  const [vacationDays, setVacationDays] = useState<Set<string>>(new Set<string>());
 
   const { user } = useUserContext();
 
@@ -55,17 +50,6 @@ export const Dashboard = () => {
 
   }, [project, togglApiKey, timeRange, vacationDays]);
 
-  // range select
-  const handleRangeSelect = useCallback(
-    (event: { startDate: Date; endDate: Date }) => {
-      if (isTimeRangeModeRef.current) {
-        setTimeRange({ start: event.startDate, end: event.endDate });
-      } else {
-        dispatch({ type: "UPDATE_VACATION_DAYS", payload: event });
-      }
-    },
-    []
-  );
 
   // project select
   const handleProjectSelect = useCallback((project: Project) => {
@@ -74,20 +58,9 @@ export const Dashboard = () => {
     setProject(project);
   }, [firestore]);
 
-  const isTimeRangeModeRef = useRef(isTimeRangeMode);
-
-  const handleToggleChange = () => {
-    setIsTimeRangeMode(!isTimeRangeMode);
-  };
-
-  useEffect(() => {
-    isTimeRangeModeRef.current = isTimeRangeMode;
-  }, [isTimeRangeMode]);
-
-
   const loadFirestore = (firestore: FirestoreService) => {
     firestore.getVacationDays().then((vacationDays) => {
-      dispatch({ type: "SET_VACATION_DAYS", payload: vacationDays ?? new Set() });
+      setVacationDays(vacationDays ?? new Set());
     });
     firestore.getDarkMode().then((darkMode) => {
       setDarkMode(darkMode ?? false);
@@ -108,23 +81,13 @@ export const Dashboard = () => {
   useEffect(() => {
     if (!firestore) return;
     if (vacationDays.size === 0) return;
+    console.log("saveVacationDays: ", vacationDays)
     const saveVacationDays = async () => {
       await firestore.setVacationDays(vacationDays);
     };
     saveVacationDays();
   }, [firestore, vacationDays]);
 
-  const vacationEvents = Array.from(vacationDays).map((date) => {
-    const startDate = new Date(date);
-    const endDate = new Date(date);
-    return {
-      id: date,
-      name: 'Vacation',
-      startDate,
-      endDate,
-      color: '#ff982d',
-    }
-  });
 
   const darkMode = useDarkMode()
 
@@ -180,31 +143,6 @@ export const Dashboard = () => {
           </div>) : (
           <ApiKeyPrompt onApiKeySubmit={handleApiKeySubmit} />
         )}
-        <div className="flex justify-center items-center mt-6 mb-4">
-          <span className="text-gray-800 dark:text-gray-200 mr-4">
-            Add Vacation Days
-          </span>
-          <Switch
-            checked={isTimeRangeMode}
-            onChange={handleToggleChange}
-            className={`${isTimeRangeMode ? "bg-blue-600" : "bg-gray-200"
-              } relative inline-flex items-center h-6 rounded-full w-11`}
-          >
-            <span
-              className={`${isTimeRangeMode ? "translate-x-6" : "translate-x-1"
-                } inline-block w-4 h-4 transform bg-white rounded-full transition-transform ease-in-out duration-200`}
-            />
-          </Switch>
-          <span className="text-gray-800 dark:text-gray-200 ml-4">
-            Select Graph Range
-          </span>
-        </div>
-        <Calendar
-          defaultYear={(new Date()).getFullYear()}
-          dataSource={vacationEvents}
-          onRangeSelected={handleRangeSelect}
-          enableRangeSelection={true}
-        />
       </div>
       <SettingsDialog
         open={isSettingsOpen}
@@ -214,6 +152,8 @@ export const Dashboard = () => {
         project={project}
         togglApiKey={togglApiKey}
         onProjectSelect={handleProjectSelect}
+        vacationDays={vacationDays}
+        onVacationDaysChange={setVacationDays}
       />
     </div>
   );

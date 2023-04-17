@@ -1,7 +1,10 @@
 import { Dialog, Listbox } from '@headlessui/react';
 import { Project } from '../services/togglService';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect, useCallback, useReducer } from 'react';
 import ReactDOM from 'react-dom';
+import Calendar from 'rc-year-calendar';
+import { vacationDaysReducer } from './vacationDaysReducer';
+
 
 
 type SettingsDialogProperties = {
@@ -12,14 +15,53 @@ type SettingsDialogProperties = {
   projects: Project[];
   project: Project | null;
   togglApiKey: string;
+
+  vacationDays: Set<string>;
+  onVacationDaysChange: (vacationDays: Set<string>) => void;
 };
 
-export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey, project, onProjectSelect }: SettingsDialogProperties) {
+export function SettingsDialog({
+  open,
+  onClose,
+  onSignOut,
+  projects,
+  togglApiKey,
+  project,
+  onProjectSelect,
+  vacationDays,
+  onVacationDaysChange,
+}: SettingsDialogProperties) {
   const [toggleApiKeyEdit, setToggleApiKeyEdit] = useState(togglApiKey);
   const [selectedProject, setSelectedProject] = useState<Project | null>(project);
-
   const [optionsPosition, setOptionsPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [temporaryVacationDays, dispatch] = useReducer(vacationDaysReducer, new Set<string>());
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setToggleApiKeyEdit(togglApiKey);
+  }, [togglApiKey]);
+
+  useEffect(() => {
+    setSelectedProject(project);
+  }, [project]);
+
+
+
+  useEffect(() => {
+    dispatch({ type: "SET_VACATION_DAYS", payload: vacationDays });
+  }, [vacationDays]);
+
+  const handleRangeSelect = useCallback(
+    (event: { startDate: Date; endDate: Date }) => {
+      dispatch({ type: "UPDATE_VACATION_DAYS", payload: event });
+    },
+    []
+  );
+
+  const handleOkClick = () => {
+    onVacationDaysChange(temporaryVacationDays);
+    onClose();
+  };
 
   const updateOptionsPosition = () => {
     if (buttonRef.current) {
@@ -32,6 +74,18 @@ export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey
     setSelectedProject(project);
     onProjectSelect(project);
   };
+
+  const vacationEvents = Array.from(temporaryVacationDays).map((date) => {
+    const startDate = new Date(date);
+    const endDate = new Date(date);
+    return {
+      id: date,
+      name: 'Vacation',
+      startDate,
+      endDate,
+      color: '#ff982d',
+    }
+  });
 
 
   return (
@@ -125,9 +179,27 @@ export function SettingsDialog({ open, onClose, onSignOut, projects, togglApiKey
           </div>
 
 
+          <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-200">
+            Vacation/Holidays
+          </h3>
+          <div
+            className="mt-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-md overflow-y-auto"
+            style={{ width: '100%', height: '300px' }}
+          >
+            <Calendar
+              defaultYear={new Date().getFullYear()}
+              dataSource={vacationEvents}
+              onRangeSelected={handleRangeSelect}
+              enableRangeSelection={true}
+              weekStart={1}
+            />
+          </div>
+
+
+
           <div className="mt-5 sm:mt-6">
             <button
-              onClick={onClose}
+              onClick={handleOkClick}
               className="bg-blue-600 text-white py-2 px-4 rounded-md mr-4"
             >
               Ok
