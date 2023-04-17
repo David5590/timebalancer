@@ -11,7 +11,7 @@ stages:
 build:
   stage: build
   script:
-    - npm ci
+    - npm ci --legacy-peer-deps
     - npm run build
   artifacts:
     paths:
