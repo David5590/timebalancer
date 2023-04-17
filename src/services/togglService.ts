@@ -3,6 +3,7 @@ import {
   eachDayOfInterval,
   format,
   formatISO,
+  isBefore,
   isWeekend,
 } from "date-fns";
 import axios, { AxiosResponse } from "axios";
@@ -199,6 +200,7 @@ export class TogglService {
       .filter(
         (day) =>
           !isWeekend(day) &&
+          isBefore(day, new Date()) &&
           !vacationDays.has(format(day, "yyyy-MM-dd")),
       );
 
