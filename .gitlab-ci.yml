@@ -1,0 +1,29 @@
+image: node:latest
+
+cache:
+  paths:
+    - node_modules/
+
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - build
+
+deploy:
+  stage: deploy
+  script:
+    - echo 'Deploying to GitLab Pages...'
+    - cp -r build public
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
