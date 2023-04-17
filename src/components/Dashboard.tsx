@@ -1,78 +1,27 @@
-import { User } from 'firebase/auth';
-import { startOfWeek, endOfWeek, eachDayOfInterval, format } from 'date-fns';
+
+import { startOfWeek, endOfWeek } from 'date-fns';
 import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
-import { MoonIcon, SunIcon } from "@heroicons/react/24/solid";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
 import { DataPoint, Project, TogglService } from '../services/togglService';
 import { auth } from '../firebase';
 import { SettingsDialog } from './SettingsDialog';
 import { Switch } from '@headlessui/react';
-
+import { vacationDaysReducer } from './vacationDaysReducer';
 import Calendar from 'rc-year-calendar';
 import { useReducer } from 'react';
-
-function dateString(date: Date) {
-  return format(date, 'yyyy-MM-dd');
-}
+import { Header } from './Header';
+import { ApiKeyPrompt } from './ApiKeyPrompt';
+import { useUserContext } from '../contexts/UserContext';
 
 interface TimeRange {
   start: Date;
   end: Date;
 }
 
-// Define the action type and payload type
-interface UpdateVacationDaysAction {
-  type: "UPDATE_VACATION_DAYS";
-  payload: {
-    startDate: Date;
-    endDate: Date;
-  };
-}
-interface SetVacationDaysAction {
-  type: "SET_VACATION_DAYS";
-  payload: Set<string>;
-}
-
-// Combine the action types
-type VacationDaysAction = UpdateVacationDaysAction | SetVacationDaysAction;
-
-const vacationDaysReducer = (state: Set<string>, action: VacationDaysAction): Set<string> => {
-  const newState = new Set(state);
-  switch (action.type) {
-    case "UPDATE_VACATION_DAYS":
-      const { startDate, endDate } = action.payload;
-      const start = dateString(startDate);
-      const end = dateString(endDate);
-      const add = !newState.has(start);
-
-      if (start && end) {
-        const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
-
-        dateRange.forEach((d) => {
-          const date = dateString(d);
-          if (add) {
-            newState.add(date);
-          } else if (newState.has(date)) {
-            newState.delete(date);
-          }
-        });
-        return newState;
-      } else {
-        return newState;
-      }
-    case "SET_VACATION_DAYS":
-      return action.payload;
-    default:
-      return state;
-  }
-};
-
-
-export const Dashboard = ({ user }: { user: User | null }) => {
+export const Dashboard = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [editToggleApiKey, setEditToggleApiKey] = useState<string>('');
   const [togglApiKey, setTogglApiKey] = useState<string>('');
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -83,10 +32,11 @@ export const Dashboard = ({ user }: { user: User | null }) => {
     end: endOfWeek(new Date(), { weekStartsOn: 1 }),
   });
   const [dataPoints, setDataPoints] = useState<DataPoint[]>([]);
-
   const [vacationDays, dispatch] = useReducer(vacationDaysReducer, new Set<string>());
 
-  // Add the useEffect hook to update the dataPoints state variable
+  const { user } = useUserContext();
+
+  // update the dataPoints state variable
   useEffect(() => {
     if (!project || !togglApiKey) return;
     console.log("useEffect: ", project, togglApiKey, timeRange)
@@ -105,6 +55,7 @@ export const Dashboard = ({ user }: { user: User | null }) => {
 
   }, [project, togglApiKey, timeRange, vacationDays]);
 
+  // range select
   const handleRangeSelect = useCallback(
     (event: { startDate: Date; endDate: Date }) => {
       if (isTimeRangeModeRef.current) {
@@ -116,6 +67,7 @@ export const Dashboard = ({ user }: { user: User | null }) => {
     []
   );
 
+  // project select
   const handleProjectSelect = useCallback((project: Project) => {
     if (!firestore || !project) return;
     firestore.setProject(project);
@@ -132,11 +84,6 @@ export const Dashboard = ({ user }: { user: User | null }) => {
     isTimeRangeModeRef.current = isTimeRangeMode;
   }, [isTimeRangeMode]);
 
-
-  useEffect(() => {
-    if (!firestore) return;
-
-  }, [firestore]);
 
   const loadFirestore = (firestore: FirestoreService) => {
     firestore.getVacationDays().then((vacationDays) => {
@@ -198,11 +145,11 @@ export const Dashboard = ({ user }: { user: User | null }) => {
     });
   }, [togglApiKey]);
 
-  const handleApiKeySubmit = useCallback(async () => {
-    setTogglApiKey(editToggleApiKey);
+  const handleApiKeySubmit = useCallback(async (apiKey: string) => {
+    setTogglApiKey(apiKey);
     if (!firestore) return;
-    await firestore.setTogglApiKey(editToggleApiKey);
-  }, [firestore, editToggleApiKey]);
+    await firestore.setTogglApiKey(apiKey);
+  }, [firestore]);
 
   const toggleDarkMode = useCallback(async () => {
     setDarkMode(!darkMode);
@@ -219,64 +166,19 @@ export const Dashboard = ({ user }: { user: User | null }) => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-800">
-      <header className="flex justify-between items-center p-4 bg-gray-100 dark:bg-gray-900">
-        <h1 className="text-2xl font-bold">TimeBalancer</h1>
-        <div className="flex items-center space-x-4">
-          <button onClick={toggleDarkMode}>
-            {darkMode ? (
-              <SunIcon className="h-6 w-6 text-gray-800 dark:text-gray-200" />
-            ) : (
-              <MoonIcon className="h-6 w-6 text-gray-800 dark:text-gray-200" />
-            )}
-          </button>
-          <img
-            src={user?.photoURL || ""}
-            alt={user?.displayName || ""}
-            className="h-10 w-10 rounded-full cursor-pointer"
-            onClick={handleSettingsClick}
-          />
-        </div>
-      </header>
+      <Header user={user} darkMode={darkMode} onDarkModeToggle={toggleDarkMode} onSettingsClick={handleSettingsClick} />
 
       <div id="daterangepicker-container"></div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-7xl">
         {togglApiKey ? (
           <div className="bg-white dark:bg-gray-900 p-8">
-            <div className="relative h-[300px] w-full">
+            <div className="relative h-[500px] w-full">
               <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints.map(({ time, duration }) => ({ x: new Date(time), y: duration }))} />
             </div>
 
           </div>) : (
-          <div className="mt-6 p-8 bg-white dark:bg-gray-900">
-            <h2 className="text-xl font-bold mb-4">Enter Toggl API Key</h2>
-            <div className="flex items-center space-x-4">
-              <input
-                className="p-2 border border-gray-300 dark:border-gray-700 rounded w-full"
-                type="text"
-                placeholder="Toggl API Key"
-                value={editToggleApiKey}
-                onChange={(e) => setEditToggleApiKey(e.target.value)}
-              />
-              <button
-                className="bg-blue-600 text-white p-2 rounded"
-                onClick={handleApiKeySubmit}
-              >
-                Confirm
-              </button>
-            </div>
-            <p className="mt-4">
-              Don't have an API key?{' '}
-              <a
-                href="https://track.toggl.com/profile"
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 dark:text-blue-400"
-              >
-                Get it here
-              </a>
-            </p>
-          </div>
+          <ApiKeyPrompt onApiKeySubmit={handleApiKeySubmit} />
         )}
         <div className="flex justify-center items-center mt-6 mb-4">
           <span className="text-gray-800 dark:text-gray-200 mr-4">
