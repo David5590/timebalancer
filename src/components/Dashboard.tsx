@@ -10,6 +10,7 @@ import { SettingsDialog } from './SettingsDialog';
 import { Header } from './Header';
 import { ApiKeyPrompt } from './ApiKeyPrompt';
 import { useUserContext } from '../contexts/UserContext';
+import Calendar from 'rc-year-calendar';
 
 interface TimeRange {
   start: Date;
@@ -115,9 +116,10 @@ export const Dashboard = () => {
   }, [firestore]);
 
   const toggleDarkMode = useCallback(async () => {
-    setDarkMode(!darkMode);
+    const newValue = !darkMode;
+    setDarkMode(newValue);
     if (!firestore) return;
-    await firestore.setDarkMode(darkMode);
+    await firestore.setDarkMode(newValue);
   }, [firestore, darkMode]);
 
   const handleSettingsClick = () => {
