@@ -1,10 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 import { enUS } from 'date-fns/locale';
 import PropTypes from 'prop-types';
 import { useDarkMode } from '../hooks/useDarkMode';
-import { format } from 'date-fns';
+import { format, isAfter } from 'date-fns';
 
 export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
   const chartRef = useRef(null);
@@ -34,11 +34,17 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
               pointBorderColor: colors.lineColor,
               pointStyle: false,
               borderWidth: 2,
+              segment: {
+                borderDash: ctx => isAfter(ctx.p0.raw.x, new Date()) ? [5, 5] : undefined,
+              }
             },
           ],
         },
         options: {
           responsive: true,
+          animation: {
+            duration: 0,
+          },
           maintainAspectRatio: false,
           scales: {
             x: {
@@ -77,6 +83,7 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
             y: {
               grid: {
                 color: colors.grid,
+                lineWidth: (ctx) => ctx.tick.value === 0 ? 3 : 1,
               },
               ticks: {
                 color: colors.text,
