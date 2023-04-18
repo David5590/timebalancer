@@ -21,6 +21,7 @@ pages:
   stage: deploy
   script:
     - echo 'Deploying to GitLab Pages...'
+    - rm -rf public
     - cp -r build public
   artifacts:
     paths:
