@@ -17,7 +17,7 @@ build:
     paths:
       - build
 
-deploy:
+pages:
   stage: deploy
   script:
     - echo 'Deploying to GitLab Pages...'
