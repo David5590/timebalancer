@@ -4,17 +4,15 @@ import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
 import { useCallback, useEffect, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
-import { DataPoint, Project, TogglService } from '../services/togglService';
+import { Project, TogglService } from '../services/togglService';
 import { auth } from '../firebase';
 import { SettingsDialog } from './SettingsDialog';
 import { Header } from './Header';
 import { ApiKeyPrompt } from './ApiKeyPrompt';
 import { useUserContext } from '../contexts/UserContext';
+import { DataPoint, TimeRange } from '../model/interfaces';
+import { getProjectDataPoints } from '../model/getProjectDataPoints';
 
-interface TimeRange {
-  start: Date;
-  end: Date;
-}
 
 export const Dashboard = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -37,15 +35,17 @@ export const Dashboard = () => {
     console.log("useEffect: ", project, togglApiKey, timeRange)
     const togglService = new TogglService(togglApiKey);
     const hoursPerDay = 7; // You can replace this with the actual value
-    togglService.getProjectDataPoints(
-      project.id,
-      [timeRange.start, timeRange.end],
-      hoursPerDay,
-      vacationDays,
-    ).then((dataPoints) => {
-      console.log("dataPoints: ", dataPoints);
-      setDataPoints(dataPoints);
-    });
+    togglService.getTimeEntries(timeRange, project.id)
+      .then((timeEntries) =>
+        getProjectDataPoints(
+          timeEntries,
+          timeRange,
+          hoursPerDay,
+          vacationDays,
+        )).then((dataPoints) => {
+          console.log("dataPoints: ", dataPoints);
+          setDataPoints(dataPoints);
+        });
     console.log("fetchDataPoints: ", project.id, [timeRange.start.toISOString(), timeRange.end.toISOString()], hoursPerDay, vacationDays);
 
   }, [project, togglApiKey, timeRange, vacationDays]);
@@ -138,7 +138,7 @@ export const Dashboard = () => {
         {togglApiKey ? (
           <div className="bg-white dark:bg-gray-900 p-8">
             <div className="relative h-[500px] w-full">
-              <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints.map(({ time, duration }) => ({ x: new Date(time), y: duration }))} />
+              <WorkTimeBalanceChart timeRange={timeRange} dataPoints={dataPoints} />
             </div>
 
           </div>) : (

@@ -1,16 +1,6 @@
-import {
-  addMinutes,
-  eachDayOfInterval,
-  format,
-  formatISO,
-  isWeekend,
-} from "date-fns";
-import axios, { AxiosResponse } from "axios";
-
-export interface DataPoint {
-  time: string;
-  duration: number;
-}
+import { format } from "date-fns";
+import axios, { AxiosInstance, AxiosResponse } from "axios";
+import { TimeRange } from "../model/interfaces";
 
 export interface TimeEntry {
   id: number;
@@ -21,41 +11,38 @@ export interface TimeEntry {
 }
 
 export interface Project {
-  id: number; // Project ID
-  active: boolean; // Whether the project is active or archived
-  color: string; // Color (hex string)
-  name: string; // Name
+  id: number;
+  active: boolean;
+  color: string;
+  name: string;
 }
 
 export class TogglService {
-  private apiKey: string;
-  private readonly apiUrl: string = "https://timebalancer.deno.dev/api";
+  private axiosInstance: AxiosInstance;
 
   constructor(apiKey: string) {
-    this.apiKey = apiKey;
+    this.axiosInstance = axios.create({
+      baseURL: "https://timebalancer.deno.dev/api",
+      headers: {
+        "Authorization": `Basic ${btoa(`${apiKey}:api_token`)}`,
+      },
+    });
   }
 
   public async getTimeEntries(
-    startDate: Date,
-    endDate: Date,
+    timeRange: TimeRange,
     projectId: number,
   ): Promise<TimeEntry[]> {
-    const authHeader = `Basic ${btoa(`${this.apiKey}:api_token`)}`;
-
     try {
-      const response: AxiosResponse<TimeEntry[]> = await axios.post(
-        `${this.apiUrl}/time_entries`,
-        {
-          start_date: format(startDate, "yyyy-MM-dd"),
-          end_date: format(endDate, "yyyy-MM-dd"),
-          project_id: projectId,
-        },
-        {
-          headers: {
-            "Authorization": authHeader,
+      const response: AxiosResponse<TimeEntry[]> = await this.axiosInstance
+        .post(
+          "/time_entries",
+          {
+            start_date: format(timeRange.start, "yyyy-MM-dd"),
+            end_date: format(timeRange.end, "yyyy-MM-dd"),
+            project_id: projectId,
           },
-        },
-      );
+        );
 
       return response.data;
     } catch (error) {
@@ -65,16 +52,9 @@ export class TogglService {
   }
 
   public async getProjects(): Promise<Project[]> {
-    const authHeader = `Basic ${btoa(`${this.apiKey}:api_token`)}`;
-
     try {
-      const response: AxiosResponse<Project[]> = await axios.get(
-        `${this.apiUrl}/projects`,
-        {
-          headers: {
-            "Authorization": authHeader,
-          },
-        },
+      const response: AxiosResponse<Project[]> = await this.axiosInstance.get(
+        "/projects",
       );
 
       const projects = response.data;
@@ -89,73 +69,5 @@ export class TogglService {
       console.error("Error fetching projects:", error);
       return [];
     }
-  }
-
-  public async getProjectDataPoints(
-    projectId: number,
-    timeRange: [Date, Date],
-    hoursPerDay: number,
-    vacationDays: Set<string>,
-  ): Promise<DataPoint[]> {
-    const startDate = new Date(timeRange[0]);
-    const endDate = new Date(timeRange[1]);
-
-    // Fetch time entries in the given time range
-    const timeEntries = await this.getTimeEntries(
-      timeRange[0],
-      timeRange[1],
-      projectId,
-    );
-
-    // Create an array of all non-vacation weekdays in the time range
-    const weekdays = eachDayOfInterval({ start: startDate, end: endDate })
-      .filter(
-        (day) =>
-          !isWeekend(day) &&
-          !vacationDays.has(format(day, "yyyy-MM-dd")),
-      );
-
-    // Initialize the events array
-    const events: any[] = [];
-    console.log("vacationDays: ", vacationDays);
-    console.log("weekdays: ", weekdays);
-
-    // Add events for non-vacation weekdays
-    weekdays.forEach((weekday) => {
-      const a = formatISO(weekday);
-      const b = formatISO(addMinutes(weekday, 1));
-      events.push({ time: a, durationChange: 0 });
-      events.push({ time: b, durationChange: hoursPerDay });
-    });
-
-    // Add events for project time entries
-    timeEntries.forEach((entry) => {
-      events.push({
-        time: entry.start,
-        durationChange: 0,
-      });
-      events.push({
-        time: entry.stop ?? entry.start,
-        durationChange: -entry.seconds / 3600,
-      });
-    });
-
-    // Sort the events by time
-    events.sort((a, b) =>
-      new Date(a.time).getTime() - new Date(b.time).getTime()
-    );
-
-    // Initialize the data points array and the current duration value
-    const dataPoints: DataPoint[] = [];
-    let currentDuration = 0;
-    console.log("events: ", events);
-
-    // Calculate the data points using the sorted events
-    events.forEach((event, index) => {
-      currentDuration += event.durationChange;
-      dataPoints.push({ time: event.time, duration: currentDuration });
-    });
-
-    return dataPoints;
   }
 }
