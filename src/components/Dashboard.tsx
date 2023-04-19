@@ -39,7 +39,7 @@ export const Dashboard = () => {
     const hoursPerDay = 7; // You can replace this with the actual value
     togglService.getProjectDataPoints(
       project.id,
-      [timeRange.start.toISOString(), timeRange.end.toISOString()],
+      [timeRange.start, timeRange.end],
       hoursPerDay,
       vacationDays,
     ).then((dataPoints) => {
