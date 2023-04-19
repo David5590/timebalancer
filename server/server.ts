@@ -106,14 +106,14 @@ router
     const workspaceId = await getWorkspaceId(authHeader);
     const { start_date, end_date, project_id } = await ctx.request.body().value;
 
-    const dailyEntries = await fetchWithAuth(
+    const response = await fetchWithAuth(
       `https://api.track.toggl.com/reports/api/v3/workspace/${workspaceId}/weekly/time_entries`,
       authHeader,
       "POST",
       { start_date, end_date, project_ids: [project_id] },
     );
 
-    ctx.response.body = dailyEntries;
+    ctx.response.body = response.flatMap((item) => item.seconds);
   })
   .post("/webhook", async (ctx) => {
     console.log(await ctx.request.body().value);

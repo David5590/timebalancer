@@ -10,6 +10,10 @@ export interface TimeEntry {
   at: string;
 }
 
+export interface DailyEntries {
+  seconds: number[];
+}
+
 export interface Project {
   id: number;
   active: boolean;
@@ -68,6 +72,41 @@ export class TogglService {
     } catch (error) {
       console.error("Error fetching projects:", error);
       return [];
+    }
+  }
+
+  public async getCurrentTimeEntry(): Promise<TimeEntry | null> {
+    try {
+      const response: AxiosResponse<TimeEntry> = await this.axiosInstance.get(
+        "/current_time_entry",
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching current time entry:", error);
+      return null;
+    }
+  }
+
+  public async getDailyEntries(
+    timeRange: TimeRange,
+    projectId: number,
+  ): Promise<DailyEntries> {
+    try {
+      const response: AxiosResponse<DailyEntries> = await this.axiosInstance
+        .post(
+          "/daily_entries",
+          {
+            start_date: format(timeRange.start, "yyyy-MM-dd"),
+            end_date: format(timeRange.end, "yyyy-MM-dd"),
+            project_id: projectId,
+          },
+        );
+
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching daily entries:", error);
+      return { seconds: [] };
     }
   }
 }
