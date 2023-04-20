@@ -1,5 +1,5 @@
 
-import { startOfWeek, endOfWeek } from 'date-fns';
+import { startOfWeek, endOfWeek, subDays } from 'date-fns';
 import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
 import { useCallback, useEffect, useState } from 'react';
@@ -35,17 +35,22 @@ export const Dashboard = () => {
     console.log("useEffect: ", project, togglApiKey, timeRange)
     const togglService = new TogglService(togglApiKey);
     const hoursPerDay = 7; // You can replace this with the actual value
-    togglService.getTimeEntries(timeRange, project.id)
-      .then((timeEntries) =>
-        getProjectDataPoints(
-          timeEntries,
-          timeRange,
-          hoursPerDay,
-          vacationDays,
-        )).then((dataPoints) => {
-          console.log("dataPoints: ", dataPoints);
-          setDataPoints(dataPoints);
-        });
+
+    getProjectDataPoints(
+      togglService,
+      {
+        timeRange,
+        projectId: project.id,
+        hoursPerDay,
+        vacationDays,
+        workDayStart: 10,
+        breakPerDay: 1,
+        contextStart: subDays(timeRange.start, 2)
+      },
+    ).then((dataPoints) => {
+      // console.log("dataPoints: ", dataPoints);
+      setDataPoints(dataPoints);
+    });
     console.log("fetchDataPoints: ", project.id, [timeRange.start.toISOString(), timeRange.end.toISOString()], hoursPerDay, vacationDays);
 
   }, [project, togglApiKey, timeRange, vacationDays]);

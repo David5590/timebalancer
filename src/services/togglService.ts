@@ -10,10 +10,6 @@ export interface TimeEntry {
   at: string;
 }
 
-export interface DailyEntries {
-  seconds: number[];
-}
-
 export interface Project {
   id: number;
   active: boolean;
@@ -21,7 +17,17 @@ export interface Project {
   name: string;
 }
 
-export class TogglService {
+interface TogglServiceInterface {
+  getTimeEntries(timeRange: TimeRange, projectId: number): Promise<TimeEntry[]>;
+  getProjects(): Promise<Project[]>;
+  getCurrentTimeEntry(): Promise<TimeEntry | null>;
+  getDailyEntries(
+    timeRange: TimeRange,
+    projectId: number,
+  ): Promise<number[]>;
+}
+
+export class TogglService implements TogglServiceInterface {
   private axiosInstance: AxiosInstance;
 
   constructor(apiKey: string) {
@@ -47,8 +53,19 @@ export class TogglService {
             project_id: projectId,
           },
         );
+      const timeEntries = response.data;
 
-      return response.data;
+      const currentTimeEntry = await this.getCurrentTimeEntry();
+      if (
+        currentTimeEntry &&
+        new Date(currentTimeEntry.start) <= timeRange.end
+      ) {
+        timeEntries.push({
+          ...currentTimeEntry,
+          stop: new Date().toISOString(),
+        });
+      }
+      return timeEntries;
     } catch (error) {
       console.error("Error fetching time entries:", error);
       return [];
@@ -91,9 +108,9 @@ export class TogglService {
   public async getDailyEntries(
     timeRange: TimeRange,
     projectId: number,
-  ): Promise<DailyEntries> {
+  ): Promise<number[]> {
     try {
-      const response: AxiosResponse<DailyEntries> = await this.axiosInstance
+      const response: AxiosResponse<number[]> = await this.axiosInstance
         .post(
           "/daily_entries",
           {
@@ -102,11 +119,10 @@ export class TogglService {
             project_id: projectId,
           },
         );
-
       return response.data;
     } catch (error) {
       console.error("Error fetching daily entries:", error);
-      return { seconds: [] };
+      return [];
     }
   }
 }

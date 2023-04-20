@@ -5,11 +5,11 @@ import { enUS } from 'date-fns/locale';
 import PropTypes from 'prop-types';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { format, isAfter } from 'date-fns';
+import { addMinutes } from 'date-fns';
 
 export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
   const chartRef = useRef(null);
   const darkmode = useDarkMode();
-  console.log('dataPoints', dataPoints)
 
   const colors = {
     text: darkmode ? '#ffffff' : '#000000',
@@ -35,7 +35,7 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
               pointStyle: false,
               borderWidth: 2,
               segment: {
-                borderDash: ctx => isAfter(ctx.p0.raw.x, new Date()) ? [5, 5] : undefined,
+                borderDash: ctx => isAfter(ctx.p1.raw.x, addMinutes(new Date(), 2)) ? [5, 5] : undefined,
               }
             },
           ],
