@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { addDays, endOfDay, format, startOfWeek, startOfYear } from "date-fns";
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 import { TimeRange } from "../model/interfaces";
 
@@ -10,6 +10,8 @@ export interface TimeEntry {
   at: string;
 }
 
+export type DayEntries = Record<string, number>; // date -> seconds
+
 export interface Project {
   id: number;
   active: boolean;
@@ -17,17 +19,13 @@ export interface Project {
   name: string;
 }
 
-interface TogglServiceInterface {
-  getTimeEntries(timeRange: TimeRange, projectId: number): Promise<TimeEntry[]>;
-  getProjects(): Promise<Project[]>;
-  getCurrentTimeEntry(): Promise<TimeEntry | null>;
-  getDailyEntries(
-    timeRange: TimeRange,
-    projectId: number,
-  ): Promise<number[]>;
+export interface TogglTimeData {
+  currentEntry: TimeEntry | null;
+  dayEntries: DayEntries;
+  timeEntries: TimeEntry[];
 }
 
-export class TogglService implements TogglServiceInterface {
+export class TogglService {
   private axiosInstance: AxiosInstance;
 
   constructor(apiKey: string) {
@@ -55,16 +53,6 @@ export class TogglService implements TogglServiceInterface {
         );
       const timeEntries = response.data;
 
-      const currentTimeEntry = await this.getCurrentTimeEntry();
-      if (
-        currentTimeEntry &&
-        new Date(currentTimeEntry.start) <= timeRange.end
-      ) {
-        timeEntries.push({
-          ...currentTimeEntry,
-          stop: new Date().toISOString(),
-        });
-      }
       return timeEntries;
     } catch (error) {
       console.error("Error fetching time entries:", error);
@@ -108,7 +96,7 @@ export class TogglService implements TogglServiceInterface {
   public async getDailyEntries(
     timeRange: TimeRange,
     projectId: number,
-  ): Promise<number[]> {
+  ): Promise<DayEntries> {
     try {
       const response: AxiosResponse<number[]> = await this.axiosInstance
         .post(
@@ -119,10 +107,39 @@ export class TogglService implements TogglServiceInterface {
             project_id: projectId,
           },
         );
-      return response.data;
+      const secondsPerDay = response.data as number[];
+      const result: DayEntries = {};
+      for (let i = 0; i < secondsPerDay.length; i++) {
+        result[format(addDays(timeRange.start, i), "yyyy-MM-dd")] =
+          secondsPerDay[i];
+      }
+      return result;
     } catch (error) {
       console.error("Error fetching daily entries:", error);
-      return [];
+      return {};
     }
+  }
+
+  public async getTimeData(projectId: number): Promise<TogglTimeData> {
+    const [currentEntry, dayEntries, timeEntries] = await Promise.all([
+      this.getCurrentTimeEntry(),
+      this.getDailyEntries({
+        start: startOfYear(new Date()),
+        end: endOfDay(new Date()),
+      }, projectId),
+      this.getTimeEntries(
+        {
+          start: startOfWeek(new Date(), { weekStartsOn: 1 }),
+          end: endOfDay(new Date()),
+        },
+        projectId,
+      ),
+    ]);
+
+    return {
+      currentEntry,
+      dayEntries,
+      timeEntries,
+    };
   }
 }

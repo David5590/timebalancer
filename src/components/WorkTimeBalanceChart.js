@@ -7,7 +7,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 import { format, isAfter } from 'date-fns';
 import { addMinutes } from 'date-fns';
 
-export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
+export const WorkTimeBalanceChart = ({ timeRange, dataPoints, timeUnit }) => {
   const chartRef = useRef(null);
   const darkmode = useDarkMode();
 
@@ -57,7 +57,7 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
               time: {
                 min: timeRange.start,
                 max: timeRange.end,
-                unit: 'hour',
+                unit: timeUnit,
                 displayFormats: {
                   // hour: 'MMM d, h a', // Display format for hours
                   day: 'MMM', // Display format for days
@@ -107,12 +107,13 @@ export const WorkTimeBalanceChart = ({ timeRange, dataPoints }) => {
 
       return () => chart.destroy();
     }
-  }, [chartRef, dataPoints, timeRange, darkmode, colors.lineColor, colors.fillColor, colors.grid, colors.text]);
+  }, [chartRef, dataPoints, timeRange, darkmode, colors.lineColor, colors.fillColor, colors.grid, colors.text, timeUnit]);
 
   return <canvas ref={chartRef}></canvas>;
 };
 
 WorkTimeBalanceChart.propTypes = {
+  timeUnit: PropTypes.string.isRequired,
   timeRange: PropTypes.shape({
     start: PropTypes.instanceOf(Date).isRequired,
     end: PropTypes.instanceOf(Date).isRequired,
