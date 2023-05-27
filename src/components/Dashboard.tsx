@@ -1,8 +1,8 @@
 
-import { startOfWeek, startOfDay, endOfDay, startOfMonth, startOfYear } from 'date-fns';
+import { startOfWeek, startOfDay, endOfDay, startOfMonth, startOfYear, addDays, endOfWeek, min, endOfMonth, endOfYear, addMonths, addWeeks, addYears, isBefore, subDays, subMonths, subWeeks, subYears } from 'date-fns';
 import { WorkTimeBalanceChart } from './WorkTimeBalanceChart';
 import { setDarkMode, useDarkMode } from '../hooks/useDarkMode';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FirestoreService } from '../services/firestoreService';
 import { Project, TogglService, TogglTimeData } from '../services/togglService';
 import { auth } from '../firebase';
@@ -13,21 +13,37 @@ import { ApiKeyPrompt } from './ApiKeyPrompt';
 import { useUserContext } from '../contexts/UserContext';
 import { TimeRange } from '../model/interfaces';
 import { TimeUnit, getProjectDataPoints, getTimeEquity } from '../model/getProjectDataPoints';
-
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 
 export const Dashboard = () => {
+  const today = useMemo(() => endOfDay(new Date()), []);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [togglApiKey, setTogglApiKey] = useState<string>('');
   const [firestore, setFirestore] = useState<FirestoreService | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>({
-    start: startOfWeek(new Date(), { weekStartsOn: 1 }),
-    end: endOfDay(new Date()),
-  });
+  const [startDate, setStartDate] = useState<Date>(startOfWeek(today, { weekStartsOn: 1 }));
+  const [timeRangeDuration, setTimeRangeDuration] = useState<'day' | 'week' | 'month' | 'year'>('week');
   const [togglTimeData, setTogglTimeData] = useState<TogglTimeData>();
-  const [timeUnit, setTimeUnit] = useState<TimeUnit>("hour");
   const [vacationDays, setVacationDays] = useState<Set<string>>(new Set<string>());
+
+  const timeRange: TimeRange = useMemo(() => ({
+    start: startDate,
+    end: min([{
+      'day': endOfDay(addDays(startDate, 1)),
+      'week': endOfWeek(startDate, { weekStartsOn: 1 }),
+      'month': endOfMonth(startDate),
+      'year': endOfYear(startDate)
+    }[timeRangeDuration], today])
+  }), [startDate, timeRangeDuration, today]);
+
+  const timeUnit: TimeUnit = {
+    'day': 'hour',
+    'week': 'hour',
+    'month': 'day',
+    'year': 'day'
+  }[timeRangeDuration] as TimeUnit;
+
 
   const { user } = useUserContext();
   const dayRange = { start: startOfDay(new Date()), end: endOfDay(new Date()) };
@@ -53,13 +69,13 @@ export const Dashboard = () => {
     if (!project || !togglApiKey) return;
     const togglService = new TogglService(togglApiKey);
     const getData = async () => {
-      setTogglTimeData(await togglService.getTimeData(project.id));
+      setTogglTimeData(await togglService.getTimeData(project.id, timeRange));
     };
     const intervalId = setInterval(getData, 60000);
     getData();
     return () => clearInterval(intervalId);
 
-  }, [project, togglApiKey]);
+  }, [project, togglApiKey, timeRange]);
 
   const dataPoints = togglTimeData ? getProjectDataPoints(togglTimeData, options(timeRange)) : [];
 
@@ -141,24 +157,55 @@ export const Dashboard = () => {
   };
 
   const handleDailyClick = () => {
-    setTimeRange(dayRange);
-    setTimeUnit("hour")
+    setStartDate(startOfDay(new Date()));
+    setTimeRangeDuration('day');
   };
 
   const handleWeeklyClick = () => {
-    setTimeRange(weekRange);
-    setTimeUnit("hour")
+    setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    setTimeRangeDuration('week');
   }
 
   const handleMonthlyClick = () => {
-    setTimeRange(monthRange);
-    setTimeUnit("day")
+    setStartDate(startOfMonth(new Date()));
+    setTimeRangeDuration('month');
   }
 
   const handleYearlyClick = () => {
-    setTimeRange(yearRange);
-    setTimeUnit("day")
+    setStartDate(startOfYear(new Date()));
+    setTimeRangeDuration('year');
   }
+  const windowStep: Date = {
+    'day': subDays(startDate, 1),
+    'week': subWeeks(startDate, 1),
+    'month': subMonths(startDate, 1),
+    'year': subYears(startDate, 1)
+  }[timeRangeDuration];
+
+  const handleLeftArrowClick = () => {
+    setStartDate(windowStep);
+  };
+
+  const handleRightArrowClick = () => {
+    const futureStep = {
+      'day': addDays(startDate, 1),
+      'week': addWeeks(startDate, 1),
+      'month': addMonths(startDate, 1),
+      'year': addYears(startDate, 1)
+    }[timeRangeDuration];
+
+    if (isBefore(futureStep, today)) {
+      setStartDate(futureStep);
+    }
+  };
+
+  const rightArrowDisabled = !isBefore({
+    'day': addDays(startDate, 1),
+    'week': addWeeks(startDate, 1),
+    'month': addMonths(startDate, 1),
+    'year': addYears(startDate, 1)
+  }[timeRangeDuration], today);
+
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-800">
@@ -174,13 +221,29 @@ export const Dashboard = () => {
           <TimeEquityView label="Yearly" timeEquity={yearlyTimeEquity} showAsEndTime={!!(togglTimeData?.currentEntry)} onClick={handleYearlyClick} />
         </div>
 
-
         {togglApiKey ? (
           <div className="bg-white dark:bg-gray-900 p-8">
-            <div className="relative h-[500px] w-full">
-              <WorkTimeBalanceChart timeRange={timeRange} timeUnit={timeUnit} dataPoints={dataPoints.map(p => ({ x: p.x, y: p.y / 3600 }))} />
+            <div className="flex justify-center items-center w-full">
+              <button onClick={handleLeftArrowClick}
+                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full mr-4">
+                <ChevronLeftIcon className="h-6 w-6" />
+              </button>
+
+              <div className="flex-grow h-[500px]">
+                <div className="text-center text-2xl mb-4">
+                  {`${formatDate(timeRange.start)} - ${formatDate(timeRange.end)}`}
+                </div>
+                <WorkTimeBalanceChart timeRange={timeRange} timeUnit={timeUnit} dataPoints={dataPoints.map(p => ({ x: p.x, y: p.y / 3600 }))} />
+              </div>
+
+              <button onClick={handleRightArrowClick}
+                disabled={rightArrowDisabled}
+                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full ml-4">
+                <ChevronRightIcon className="h-6 w-6" />
+              </button>
             </div>
-          </div>) : (
+          </div>
+        ) : (
           <ApiKeyPrompt onApiKeySubmit={handleApiKeySubmit} />
         )}
       </div>
@@ -197,6 +260,15 @@ export const Dashboard = () => {
       />
     </div>
   );
-
 };
 
+function formatDate(date: Date) {
+  const currentYear = new Date().getFullYear();
+  const options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric' };
+
+  if (date.getFullYear() !== currentYear) {
+    options.year = 'numeric';
+  }
+
+  return date.toLocaleDateString(undefined, options);
+}

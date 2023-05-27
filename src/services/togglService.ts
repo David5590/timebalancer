@@ -120,13 +120,13 @@ export class TogglService {
     }
   }
 
-  public async getTimeData(projectId: number): Promise<TogglTimeData> {
+  public async getTimeData(
+    projectId: number,
+    period: TimeRange,
+  ): Promise<TogglTimeData> {
     const [currentEntry, dayEntries, timeEntries] = await Promise.all([
       this.getCurrentTimeEntry(),
-      this.getDailyEntries({
-        start: startOfYear(new Date()),
-        end: endOfDay(new Date()),
-      }, projectId),
+      this.getDailyEntries(period, projectId),
       this.getTimeEntries(
         {
           start: startOfWeek(new Date(), { weekStartsOn: 1 }),
