@@ -64,6 +64,20 @@ export function SettingsDialog({
     onProjectSelect(project);
   };
 
+  const handleExportClick = () => {
+    const userSettings = {
+      project: selectedProject,
+      vacationDays: Array.from(temporaryVacationDays),
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userSettings));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "user_settings.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
   const vacationEvents = Array.from(temporaryVacationDays).map((date) => {
     const startDate = new Date(date);
     const endDate = new Date(date);
@@ -137,9 +151,15 @@ export function SettingsDialog({
             </button>
             <button
               onClick={onSignOut}
-              className="bg-red-600 text-white py-2 px-4 rounded-md"
+              className="bg-red-600 text-white py-2 px-4 rounded-md mr-4"
             >
               Sign Out
+            </button>
+            <button
+              onClick={handleExportClick}
+              className="bg-green-600 text-white py-2 px-4 rounded-md"
+            >
+              Export
             </button>
           </div>
         </div>
