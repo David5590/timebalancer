@@ -19,31 +19,32 @@ export interface TimeBalanceOptions {
   timeUnit: TimeUnit;
 }
 
-export function getProjectDataPoints({
-  currentEntry,
-  dayEntries,
-  timeEntries,
-}: TogglTimeData, {
-  timeRange,
-  hoursPerDay,
-  vacationDays,
-  timeUnit,
-}: TimeBalanceOptions): DataPoint[] {
+function getHoursPerDay(date: Date): number {
+  return isAfter(date, new Date("2024-11-01")) ? 8 : 7;
+}
+
+export function getProjectDataPoints(
+  { currentEntry, dayEntries, timeEntries }: TogglTimeData,
+  { timeRange, hoursPerDay, vacationDays, timeUnit }: TimeBalanceOptions
+): DataPoint[] {
   const secondsPerDay = hoursPerDay * 60 * 60;
-  const relevantEntries = timeEntries.filter((entry) =>
-    isBefore(new Date(entry.start), timeRange.end) &&
-    isAfter(new Date(entry.stop), timeRange.start)
+  const relevantEntries = timeEntries.filter(
+    (entry) =>
+      isBefore(new Date(entry.start), timeRange.end) &&
+      isAfter(new Date(entry.stop), timeRange.start)
   );
 
-  const events = timeUnit === "hour"
-    ? createTimeDebtEvents(timeRange, secondsPerDay, vacationDays).concat(
-      createTimeEntriesEvents(relevantEntries, currentEntry),
-    )
-    : eachDayOfInterval(timeRange).map((day) => ({
-      x: day,
-      y: (-dayEntries[format(day, "yyyy-MM-dd")] ?? 0) +
-        (isWorkDay(day, vacationDays) ? secondsPerDay : 0),
-    }));
+  const events =
+    timeUnit === "hour"
+      ? createTimeDebtEvents(timeRange, secondsPerDay, vacationDays).concat(
+          createTimeEntriesEvents(relevantEntries, currentEntry)
+        )
+      : eachDayOfInterval(timeRange).map((day) => ({
+          x: day,
+          y:
+            (-dayEntries[format(day, "yyyy-MM-dd")] ?? 0) +
+            (isWorkDay(day, vacationDays) ? getHoursPerDay(day) * 60 * 60 : 0),
+        }));
 
   sortEvents(events);
 
@@ -52,18 +53,14 @@ export function getProjectDataPoints({
   return extendData(dataPoints, timeRange);
 }
 
-export function getTimeEquity({
-  currentEntry,
-  dayEntries,
-}: TogglTimeData, {
-  timeRange,
-  hoursPerDay,
-  vacationDays,
-}: TimeBalanceOptions): number {
+export function getTimeEquity(
+  { currentEntry, dayEntries }: TogglTimeData,
+  { timeRange, hoursPerDay, vacationDays }: TimeBalanceOptions
+): number {
   let debt = 0;
   let assets = 0;
   workDays(timeRange, vacationDays).forEach((day) => {
-    debt += hoursPerDay * 60 * 60;
+    debt += getHoursPerDay(day) * 60 * 60;
   });
 
   eachDayOfInterval(timeRange).forEach((day) => {
@@ -92,7 +89,7 @@ function sortEvents(events: DataPoint[]) {
 function createTimeDebtEvents(
   timeRange: TimeRange,
   secondsPerDay: number,
-  vacationDays: Set<string>,
+  vacationDays: Set<string>
 ): DataPoint[] {
   const events: DataPoint[] = [];
   for (const day of workDays(timeRange, vacationDays)) {
@@ -102,7 +99,7 @@ function createTimeDebtEvents(
     events.push({ x: day, y: 0 });
     events.push({
       x: addMinutes(day, 1),
-      y: secondsPerDay,
+      y: getHoursPerDay(day) * 60 * 60,
     });
   }
   return events;
@@ -110,9 +107,7 @@ function createTimeDebtEvents(
 
 function workDays(timeRange: TimeRange, vacationDays: Set<string>) {
   return eachDayOfInterval(timeRange).filter(
-    (day) =>
-      !isWeekend(day) &&
-      !vacationDays.has(format(day, "yyyy-MM-dd")),
+    (day) => !isWeekend(day) && !vacationDays.has(format(day, "yyyy-MM-dd"))
   );
 }
 
@@ -122,7 +117,7 @@ function isWorkDay(day: Date, vacationDays: Set<string>): boolean {
 
 function createTimeEntriesEvents(
   timeEntries: TimeEntry[],
-  currentEntry: TimeEntry | null,
+  currentEntry: TimeEntry | null
 ): DataPoint[] {
   const events: DataPoint[] = [];
   timeEntries.forEach((entry) => {
@@ -150,7 +145,7 @@ function createTimeEntriesEvents(
 
 function sumTimeEquity(
   events: DataPoint[],
-  initialTimeEquity: number,
+  initialTimeEquity: number
 ): DataPoint[] {
   const dataPoints: DataPoint[] = [];
   let equity = initialTimeEquity;
