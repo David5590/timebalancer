@@ -8,22 +8,60 @@ import { oakCors } from "https://deno.land/x/cors/mod.ts";
 
 const app = new Application();
 const router = new Router();
-const workspaces: Record<string, number> = {};
 
-async function getWorkspaceId(authHeader: string) {
-  if (workspaces[authHeader]) {
-    return workspaces[authHeader];
+// --- Per-user TTL cache ---
+// With only 30 requests/hour on the free plan, we must cache aggressively.
+interface CacheEntry {
+  data: unknown;
+  expiresAt: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+
+const CACHE_TTL = {
+  workspace: 60 * 60 * 1000, // 1 hour - workspace ID rarely changes
+  projects: 30 * 60 * 1000, // 30 min - projects rarely change
+  currentEntry: 2 * 60 * 1000, // 2 min - current timer changes often
+  timeEntries: 5 * 60 * 1000, // 5 min - historical entries
+  dailyEntries: 5 * 60 * 1000, // 5 min - historical entries
+};
+
+function getCached(key: string): unknown | undefined {
+  const entry = cache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return undefined;
   }
+  return entry.data;
+}
 
+function setCache(key: string, data: unknown, ttlMs: number) {
+  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+// Build a cache key from auth header + endpoint-specific params
+function cacheKey(authHeader: string, endpoint: string, params?: string): string {
+  return `${authHeader}:${endpoint}${params ? `:${params}` : ""}`;
+}
+
+// --- Workspace ID lookup (cached) ---
+async function getWorkspaceId(authHeader: string): Promise<number> {
+  const key = cacheKey(authHeader, "workspace");
+  const cached = getCached(key);
+  if (cached !== undefined) return cached as number;
+
+  // deno-lint-ignore no-explicit-any
   const me = await fetchWithAuth(
     "https://api.track.toggl.com/api/v9/me",
     authHeader,
-  );
-  workspaces[authHeader] = me.default_workspace_id;
-  return me.default_workspace_id;
+  ) as any;
+  const id = me.default_workspace_id;
+  setCache(key, id, CACHE_TTL.workspace);
+  return id;
 }
 
-// Simple rate limiter: ensures at least 1 second between Toggl API requests
+// --- Rate limiter: 1 request per second to Toggl ---
 let lastRequestTime = 0;
 
 async function rateLimitedFetch(
@@ -41,6 +79,7 @@ async function rateLimitedFetch(
   return fetch(url, options);
 }
 
+// --- Fetch with auth, retry on 402/429/5xx ---
 async function fetchWithAuth(
   url: string,
   authHeader: string,
@@ -60,13 +99,11 @@ async function fetchWithAuth(
     requestOptions.body = JSON.stringify(body);
   }
 
-  // Retry with exponential backoff for rate limiting (429) and server errors
   const maxRetries = 4;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const response = await rateLimitedFetch(url, requestOptions);
 
     if (response.ok) {
-      // Handle empty responses (e.g., current time entry when nothing is running)
       const text = await response.text();
       if (!text || text === "null") return null;
       try {
@@ -76,11 +113,14 @@ async function fetchWithAuth(
       }
     }
 
-    if (response.status === 429 && attempt < maxRetries) {
-      // Rate limited - back off exponentially
-      const backoffMs = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s, 16s
+    // 402 = Toggl's rate limit exceeded, 429 = general rate limit
+    if (
+      (response.status === 402 || response.status === 429) &&
+      attempt < maxRetries
+    ) {
+      const backoffMs = Math.pow(2, attempt + 1) * 1000;
       console.warn(
-        `Rate limited (429) on ${method} ${url}, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${maxRetries})`,
+        `Rate limited (${response.status}) on ${method} ${url}, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${maxRetries})`,
       );
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
       continue;
@@ -106,7 +146,7 @@ async function fetchWithAuth(
   throw new Error(`Max retries exceeded for ${method} ${url}`);
 }
 
-// Paginated fetch for Toggl Reports API v3 detailed reports
+// --- Paginated fetch for Reports API v3 detailed reports ---
 async function fetchAllTimeEntries(
   url: string,
   authHeader: string,
@@ -125,7 +165,6 @@ async function fetchAllTimeEntries(
       requestBody.first_id = firstId;
     }
 
-    // We need the raw response for pagination headers, so do this manually
     const headers = new Headers();
     headers.set("Authorization", authHeader);
     headers.set("Content-Type", "application/json");
@@ -151,7 +190,8 @@ async function fetchAllTimeEntries(
       if (response.ok) break;
 
       if (
-        (response.status === 429 || response.status >= 500) &&
+        (response.status === 402 || response.status === 429 ||
+          response.status >= 500) &&
         attempt < maxRetries
       ) {
         const backoffMs = Math.pow(2, attempt + 1) * 1000;
@@ -180,7 +220,6 @@ async function fetchAllTimeEntries(
       allEntries.push(...data);
     }
 
-    // Check for pagination headers
     const nextRowNumber = response.headers.get("X-Next-Row-Number");
     const nextId = response.headers.get("X-Next-ID");
 
@@ -195,6 +234,7 @@ async function fetchAllTimeEntries(
   return allEntries;
 }
 
+// --- Error handler middleware ---
 async function errorHandler(ctx: Context, next: () => Promise<unknown>) {
   try {
     await next();
@@ -209,28 +249,44 @@ async function errorHandler(ctx: Context, next: () => Promise<unknown>) {
     }
   }
 }
+
+// --- Routes ---
 router
   .get("/api/projects", async (ctx) => {
     const authHeader = ctx.request.headers.get("Authorization")!;
-    const workspaceId = await getWorkspaceId(authHeader);
+    const key = cacheKey(authHeader, "projects");
+    const cached = getCached(key);
+    if (cached !== undefined) {
+      ctx.response.body = cached;
+      return;
+    }
 
+    const workspaceId = await getWorkspaceId(authHeader);
     const projects = await fetchWithAuth(
       `https://api.track.toggl.com/api/v9/workspaces/${workspaceId}/projects`,
       authHeader,
     );
+    setCache(key, projects, CACHE_TTL.projects);
     ctx.response.body = projects;
   })
   .get("/api/current_time_entry", async (ctx) => {
     const authHeader = ctx.request.headers.get("Authorization")!;
+    const key = cacheKey(authHeader, "current_time_entry");
+    const cached = getCached(key);
+    if (cached !== undefined) {
+      ctx.response.body = cached;
+      return;
+    }
+
     const currentTimeEntry = await fetchWithAuth(
       "https://api.track.toggl.com/api/v9/me/time_entries/current",
       authHeader,
     );
+    setCache(key, currentTimeEntry, CACHE_TTL.currentEntry);
     ctx.response.body = currentTimeEntry;
   })
   .post("/api/time_entries", async (ctx) => {
     const authHeader = ctx.request.headers.get("Authorization")!;
-    const workspaceId = await getWorkspaceId(authHeader);
     const body = await ctx.request.body().value;
     const { start_date, end_date, project_id } = body as {
       start_date: string;
@@ -238,6 +294,18 @@ router
       project_id: number;
     };
 
+    const key = cacheKey(
+      authHeader,
+      "time_entries",
+      `${start_date}:${end_date}:${project_id}`,
+    );
+    const cached = getCached(key);
+    if (cached !== undefined) {
+      ctx.response.body = cached;
+      return;
+    }
+
+    const workspaceId = await getWorkspaceId(authHeader);
     const entries = await fetchAllTimeEntries(
       `https://api.track.toggl.com/reports/api/v3/workspace/${workspaceId}/search/time_entries`,
       authHeader,
@@ -245,11 +313,12 @@ router
     );
 
     // deno-lint-ignore no-explicit-any
-    ctx.response.body = entries.flatMap((item: any) => item.time_entries);
+    const result = entries.flatMap((item: any) => item.time_entries);
+    setCache(key, result, CACHE_TTL.timeEntries);
+    ctx.response.body = result;
   })
   .post("/api/daily_entries", async (ctx) => {
     const authHeader = ctx.request.headers.get("Authorization")!;
-    const workspaceId = await getWorkspaceId(authHeader);
     const body = await ctx.request.body().value;
     const { start_date, end_date, project_id } = body as {
       start_date: string;
@@ -257,6 +326,18 @@ router
       project_id: number;
     };
 
+    const key = cacheKey(
+      authHeader,
+      "daily_entries",
+      `${start_date}:${end_date}:${project_id}`,
+    );
+    const cached = getCached(key);
+    if (cached !== undefined) {
+      ctx.response.body = cached;
+      return;
+    }
+
+    const workspaceId = await getWorkspaceId(authHeader);
     const response = await fetchWithAuth(
       `https://api.track.toggl.com/reports/api/v3/workspace/${workspaceId}/weekly/time_entries`,
       authHeader,
@@ -265,9 +346,9 @@ router
     );
 
     // deno-lint-ignore no-explicit-any
-    ctx.response.body = (response as any[]).flatMap((item: any) =>
-      item.seconds
-    );
+    const result = (response as any[]).flatMap((item: any) => item.seconds);
+    setCache(key, result, CACHE_TTL.dailyEntries);
+    ctx.response.body = result;
   })
   .post("/webhook", async (ctx) => {
     console.log(await ctx.request.body().value);
