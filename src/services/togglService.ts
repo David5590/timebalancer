@@ -25,12 +25,15 @@ export interface TogglTimeData {
   timeEntries: TimeEntry[];
 }
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ||
+  "https://timebalancer.david5590.deno.net/api";
+
 export class TogglService {
   private axiosInstance: AxiosInstance;
 
   constructor(apiKey: string) {
     this.axiosInstance = axios.create({
-      baseURL: "https://timebalancer.deno.dev/api",
+      baseURL: API_BASE_URL,
       headers: {
         "Authorization": `Basic ${btoa(`${apiKey}:api_token`)}`,
       },
