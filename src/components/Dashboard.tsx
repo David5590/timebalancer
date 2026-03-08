@@ -55,7 +55,8 @@ export const Dashboard = () => {
     const getData = async () => {
       setTogglTimeData(await togglService.getTimeData(project.id));
     };
-    const intervalId = setInterval(getData, 60000);
+    // Poll every 5 minutes to stay within Toggl's 30 req/hour free tier limit
+    const intervalId = setInterval(getData, 5 * 60 * 1000);
     getData();
     return () => clearInterval(intervalId);
 
